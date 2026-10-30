@@ -47,6 +47,26 @@ pub const CHUNK_HEADER_SIZE: usize = 16;
 pub enum PixelFormat {
     /// One RGB8 plane (the MNF8/MNF9 native shape).
     Rgb8 = 1,
+    /// One RGBA8 plane (alpha; hidden RGB preserved per grammar rule 8).
+    Rgba8 = 2,
+    /// One Gray8 plane.
+    Gray8 = 3,
+    /// One GrayA8 plane.
+    GrayA8 = 4,
+}
+
+impl PixelFormat {
+    /// Bytes per sample: 3 RGB8, 4 RGBA8, 1 Gray8, 2 GrayA8. The
+    /// pixel-plane decode bound derives from this (never a remembered
+    /// constant — the fixture-geometry lesson).
+    pub fn stride_mult(self) -> usize {
+        match self {
+            PixelFormat::Rgb8 => 3,
+            PixelFormat::Rgba8 => 4,
+            PixelFormat::Gray8 => 1,
+            PixelFormat::GrayA8 => 2,
+        }
+    }
 }
 
 impl std::convert::TryFrom<u8> for PixelFormat {
@@ -55,6 +75,9 @@ impl std::convert::TryFrom<u8> for PixelFormat {
     fn try_from(v: u8) -> core::result::Result<Self, Self::Error> {
         match v {
             1 => Ok(PixelFormat::Rgb8),
+            2 => Ok(PixelFormat::Rgba8),
+            3 => Ok(PixelFormat::Gray8),
+            4 => Ok(PixelFormat::GrayA8),
             _ => Err(()),
         }
     }

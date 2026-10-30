@@ -85,15 +85,15 @@ fn corpus_embedded_equals_standalone_and_framing_is_34() {
         };
         assert_eq!(got.dims, sdims, "{}: dims differ", path.display());
         assert_eq!(
-            got.rgb,
+            got.samples,
             spx,
             "{}: embedded decode != standalone ({} vs {} B)",
             path.display(),
-            got.rgb.len(),
+            got.samples.len(),
             spx.len()
         );
         // Gate 3: and the standalone decode is EXACT vs the source pixels.
-        assert_eq!(got.rgb, img.pixels, "{}: pixels lost", path.display());
+        assert_eq!(got.samples, img.pixels, "{}: pixels lost", path.display());
 
         rows.push(format!(
             "{:44} {} {} {} {:>8} B +34",

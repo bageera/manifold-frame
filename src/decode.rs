@@ -1,17 +1,25 @@
-//! W1: pixel-layer decode — embedded MNF8/MNF9 files decode byte-identically
-//! to their standalone decode (the ADR-009 W1 exit gate).
+//! W1/W2: pixel-layer decode — embedded MNF8/MNF9 files decode
+//! byte-identically to their standalone decode (the W1 exit gate); the
+//! W2 plane formats (RGB8/RGBA8/Gray8/GrayA8) decode raw and zstd
+//! planes against the format-derived stride bound, hidden RGB
+//! preserved (grammar rule 8 — the plane's alpha and color channels
+//! all come back byte-exact).
 
 use crate::error::{Error, Result};
 use crate::parser::Chunk;
 use crate::*;
 
-/// The decoded pixels of an MNFX container: dims + RGB8 row-major bytes.
+/// The decoded pixel plane of an MNFX container: dims + interleaved
+/// row-major samples in the header's pixel format.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pixels {
     /// Image dimensions (must equal the container header's).
     pub dims: manifold::codec::Dims,
-    /// RGB8 row-major samples, `width * height * 3` bytes.
-    pub rgb: Vec<u8>,
+    /// The container's pixel format (echoed for the caller).
+    pub format: PixelFormat,
+    /// Interleaved row-major samples, `width * height * stride` bytes
+    /// (stride = 3 RGB8, 4 RGBA8/GrayA8, 1 Gray8).
+    pub samples: Vec<u8>,
 }
 
 /// Decode a container's PIXEL chunk into pixels.
@@ -26,6 +34,14 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
         .find(|c| c.header.chunk_type == ChunkType::Pixel)
         .ok_or_else(|| Error::fmt_msg("mnfx: no pixel chunk"))?;
     if pixel.header.codec == Codec::MnF8 || pixel.header.codec == Codec::MnF9 {
+        // Embed payloads are the engines' native RGB8; other formats ride
+        // the plane codecs (grammar rule 9).
+        if hdr.pixel_format != PixelFormat::Rgb8 {
+            return Err(Error::fmt_msg(format!(
+                "mnfx: embed codec {} requires pixel_format 1 (RGB8), got {}",
+                pixel.header.codec as u8, hdr.pixel_format as u8
+            )));
+        }
         // An embed payload is a whole standalone file: dispatch by magic,
         // and the magic must AGREE with the chunk's codec field (a codec-5
         // payload whose magic says MNF8 is corrupt, not a silent remap).
@@ -56,38 +72,91 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
                 .map_err(|e| Error::fmt_msg(format!("mnfx: MNF9 embed decode: {e}")))?
         };
         check_dims(hdr, dims.width, dims.height)?;
-        return Ok(Pixels { dims, rgb });
+        return Ok(Pixels {
+            dims,
+            format: hdr.pixel_format,
+            samples: plane_bytes(hdr, rgb)?,
+        });
     }
-    // Raw / Zstd: a plain byte plane bounded by raw_len (the grammar's
-    // decode bound). Zstd's decompression lands with W2's alpha layer;
-    // until a producer exists, admit only Raw here.
-    if pixel.header.codec != Codec::Raw {
-        return Err(Error::fmt_msg(
-            "mnfx: zstd pixel layer decode lands at W2 (no producer yet)",
-        ));
-    }
-    let w =
-        usize::try_from(hdr.width).map_err(|_| Error::fmt_msg("mnfx: width overflows usize"))?;
-    let h =
-        usize::try_from(hdr.height).map_err(|_| Error::fmt_msg("mnfx: height overflows usize"))?;
-    let want = w
-        .checked_mul(h)
-        .and_then(|a| a.checked_mul(3))
-        .ok_or_else(|| Error::fmt_msg("mnfx: pixel area overflows usize"))?;
-    if pixel.stored.len() != want || pixel.header.raw_len as usize != want {
-        return Err(Error::fmt_msg(format!(
-            "mnfx: raw pixel layer {} B != header-derived {} B",
-            pixel.stored.len(),
-            want
-        )));
-    }
+    // Raw / Zstd: an interleaved byte plane, bound = stride × pixels
+    // (grammar rule 4: raw_len == stored_len == plane length).
+    let bound = plane_bound(hdr)?;
+    let plane: Vec<u8> = match pixel.header.codec {
+        Codec::Raw => {
+            if pixel.stored.len() != bound || pixel.header.raw_len as usize != bound {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: raw pixel layer {} B != header-derived {} B",
+                    pixel.stored.len(),
+                    bound
+                )));
+            }
+            pixel.stored.clone()
+        }
+        Codec::Zstd => decompress_bounded(&pixel.stored, bound)?,
+        _ => {
+            return Err(Error::fmt_msg(
+                "mnfx: non-embed pixel codec must be raw or zstd",
+            ))
+        }
+    };
     Ok(Pixels {
         dims: manifold::codec::Dims {
             width: hdr.width,
             height: hdr.height,
         },
-        rgb: pixel.stored.clone(),
+        format: hdr.pixel_format,
+        samples: plane,
     })
+}
+
+/// The exact byte length of the pixel plane: width × height × stride(format).
+fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
+    let w =
+        usize::try_from(hdr.width).map_err(|_| Error::fmt_msg("mnfx: width overflows usize"))?;
+    let h =
+        usize::try_from(hdr.height).map_err(|_| Error::fmt_msg("mnfx: height overflows usize"))?;
+    w.checked_mul(h)
+        .and_then(|a| a.checked_mul(hdr.pixel_format.stride_mult()))
+        .ok_or_else(|| Error::fmt_msg("mnfx: pixel area overflows usize"))
+}
+
+/// A raw (uncompressed) plane re-bounded by the header-derived length.
+fn plane_bytes(hdr: &ContainerHeader, plane: Vec<u8>) -> Result<Vec<u8>> {
+    let want = plane_bound(hdr)?;
+    if plane.len() != want {
+        return Err(Error::fmt_msg(format!(
+            "mnfx: pixel plane {} B != header-derived {} B",
+            plane.len(),
+            want
+        )));
+    }
+    Ok(plane)
+}
+
+/// Zstd decode with the manifold-repo hardening: mandatory frame
+/// checksum (the library accepts a checksumless frame whose interior
+/// corruption goes silent — the MNF7-precedent rule), window capped at
+/// 8 MiB (2^23, matching the level-19 encoder ceiling; a hostile frame
+/// must not claim the 128 MiB library default), and the decompressed
+/// size bounded by `bound + 1` with the take-limit read as the bomb check.
+fn decompress_bounded(stored: &[u8], bound: usize) -> Result<Vec<u8>> {
+    use std::io::Read;
+    let mut d =
+        zstd::stream::read::Decoder::new(stored).map_err(|_| Error::fmt_msg("mnfx: zstd init"))?;
+    d.window_log_max(23)
+        .map_err(|_| Error::fmt_msg("mnfx: zstd window param"))?;
+    let mut v = Vec::new();
+    d.take(bound as u64 + 1)
+        .read_to_end(&mut v)
+        .map_err(|_| Error::fmt_msg("mnfx: corrupt zstd stream"))?;
+    if v.len() != bound {
+        return Err(Error::fmt_msg(format!(
+            "mnfx: zstd pixel plane {} B != bound {}",
+            v.len(),
+            bound
+        )));
+    }
+    Ok(v)
 }
 
 fn check_dims(hdr: &ContainerHeader, w: u32, h: u32) -> Result<()> {
@@ -128,6 +197,11 @@ mod tests {
         serialize(&hdr_for(w, h), &[(ChunkType::Pixel, codec, file)]).unwrap()
     }
 
+    /// Wrap chunks under an EXPLICIT header (non-RGB8 formats).
+    fn wrap_with(hdr: &ContainerHeader, chunks: &[(ChunkType, Codec, &[u8])]) -> Vec<u8> {
+        serialize(hdr, chunks).unwrap()
+    }
+
     fn solid_8x8() -> (manifold::codec::Dims, Vec<u8>) {
         let dims = manifold::codec::Dims {
             width: 8,
@@ -164,8 +238,8 @@ mod tests {
         let got = decode_pixels(&h, &chunks).unwrap();
         let (sdims, spx, _b) = manifold::mnf8::decode_mnf8(&file).unwrap();
         assert_eq!(got.dims, sdims);
-        assert_eq!(got.rgb, spx, "embedded MNF8 decode != standalone");
-        assert_eq!(got.rgb, px, "MNFX round-trip lost pixels");
+        assert_eq!(got.samples, spx, "embedded MNF8 decode != standalone");
+        assert_eq!(got.samples, px, "MNFX round-trip lost pixels");
     }
 
     #[test]
@@ -178,8 +252,8 @@ mod tests {
         let got = decode_pixels(&h, &chunks).unwrap();
         let (sdims, spx, _b) = manifold::mnf8::decode_mnf8(&file).unwrap();
         assert_eq!(got.dims, sdims);
-        assert_eq!(got.rgb, spx, "embedded MNF8 decode != standalone");
-        assert_eq!(got.rgb, px);
+        assert_eq!(got.samples, spx, "embedded MNF8 decode != standalone");
+        assert_eq!(got.samples, px);
     }
 
     #[test]
@@ -193,8 +267,8 @@ mod tests {
         let got = decode_pixels(&h, &chunks).unwrap();
         let (sdims, spx) = manifold::mnf9::decode_mnf9(&file).unwrap();
         assert_eq!(got.dims, sdims);
-        assert_eq!(got.rgb, spx, "embedded MNF9 decode != standalone");
-        assert_eq!(got.rgb, px);
+        assert_eq!(got.samples, spx, "embedded MNF9 decode != standalone");
+        assert_eq!(got.samples, px);
     }
 
     #[test]
@@ -237,7 +311,7 @@ mod tests {
         let buf = wrap(&payload, Codec::Raw, w, h);
         let (hc, chunks) = parse(&buf).unwrap();
         let got = decode_pixels(&hc, &chunks).unwrap();
-        assert_eq!(got.rgb, payload);
+        assert_eq!(got.samples, payload);
         // One byte short: wrong plane size must reject.
         let buf2 = wrap(&payload[..payload.len() - 1], Codec::Raw, w, h);
         let (hc2, ch2) = parse(&buf2).unwrap();
@@ -245,11 +319,80 @@ mod tests {
     }
 
     #[test]
-    fn zstd_pixel_layer_rejected_until_w2() {
-        let buf = wrap(b"zstd-payload", Codec::Zstd, 8, 8);
-        let (h, chunks) = parse(&buf).unwrap();
-        let err = decode_pixels(&h, &chunks).unwrap_err();
-        assert!(format!("{err}").contains("W2"), "got: {err}");
+    fn zstd_pixel_plane_roundtrips() {
+        // A real zstd frame (checksum on, the mandatory-production shape)
+        // carrying an RGBA plane: hidden RGB preserved = all 4 channels
+        // come back byte-exact.
+        let (w, h) = (8u32, 8u32);
+        let hdr = ContainerHeader {
+            pixel_format: PixelFormat::Rgba8,
+            ..hdr_for(w, h)
+        };
+        let mut plane = vec![0u8; (w * h) as usize * 4];
+        for (i, b) in plane.iter_mut().enumerate() {
+            *b = (i % 251) as u8; // noisy: no accidental structure
+        }
+        use std::io::Write;
+        let mut e = zstd::stream::Encoder::new(Vec::new(), 19).unwrap();
+        e.include_checksum(true).unwrap();
+        e.write_all(&plane).unwrap();
+        let frame = e.finish().unwrap();
+        let buf = wrap_with(&hdr, &[(ChunkType::Pixel, Codec::Zstd, &frame)]);
+        let (hc, chunks) = parse(&buf).unwrap();
+        let got = decode_pixels(&hc, &chunks).unwrap();
+        assert_eq!(got.format, PixelFormat::Rgba8);
+        assert_eq!(got.samples, plane, "zstd RGBA plane roundtrip lost bytes");
+    }
+
+    #[test]
+    fn zstd_over_bound_rejects() {
+        // A frame decompressing to MORE than the header-derived plane
+        // bound is a bomb: reject (also exercises the raw_len-mismatch arm).
+        let hdr = hdr_for(8, 8);
+        let bound = plane_bound(&hdr).unwrap();
+        let big = vec![0u8; bound + 1];
+        use std::io::Write;
+        let mut e = zstd::stream::Encoder::new(Vec::new(), 19).unwrap();
+        e.include_checksum(true).unwrap();
+        e.write_all(&big).unwrap();
+        let frame = e.finish().unwrap();
+        let buf = wrap_with(&hdr, &[(ChunkType::Pixel, Codec::Zstd, &frame)]);
+        let (hc, chunks) = parse(&buf).unwrap();
+        assert!(decode_pixels(&hc, &chunks).is_err());
+    }
+
+    #[test]
+    fn gray8_and_graya8_planes_bound_by_their_stride() {
+        let (w, h) = (8u32, 8u32);
+        assert_eq!(PixelFormat::Gray8.stride_mult(), 1);
+        assert_eq!(PixelFormat::GrayA8.stride_mult(), 2);
+        // Gray8: a plane of exactly w*h*1 decodes.
+        let gray_hdr = ContainerHeader {
+            pixel_format: PixelFormat::Gray8,
+            ..hdr_for(w, h)
+        };
+        let plane = vec![7u8; (w * h) as usize];
+        let buf = wrap_with(&gray_hdr, &[(ChunkType::Pixel, Codec::Raw, &plane)]);
+        let (hc, chunks) = parse(&buf).unwrap();
+        let got = decode_pixels(&hc, &chunks).unwrap();
+        assert_eq!(got.samples, plane);
+        // Gray8 one byte over the bound: reject.
+        let mut over = plane.clone();
+        over.push(7);
+        let buf2 = wrap_with(&gray_hdr, &[(ChunkType::Pixel, Codec::Raw, &over)]);
+        let (hc2, ch2) = parse(&buf2).unwrap();
+        assert!(decode_pixels(&hc2, &ch2).is_err());
+        // GrayA8: w*h*2 decodes.
+        let ga_hdr = ContainerHeader {
+            pixel_format: PixelFormat::GrayA8,
+            ..hdr_for(w, h)
+        };
+        let ga_plane = vec![9u8; (w * h) as usize * 2];
+        let buf3 = wrap_with(&ga_hdr, &[(ChunkType::Pixel, Codec::Raw, &ga_plane)]);
+        let (hc3, ch3) = parse(&buf3).unwrap();
+        let got3 = decode_pixels(&hc3, &ch3).unwrap();
+        assert_eq!(got3.format, PixelFormat::GrayA8);
+        assert_eq!(got3.samples, ga_plane);
     }
 
     #[test]
@@ -293,6 +436,21 @@ mod tests {
         .unwrap();
         let (_h, chunks) = parse(&buf).unwrap();
         assert_eq!(chunks.len(), 2);
+    }
+
+    #[test]
+    fn embed_codec_requires_rgb8_pixel_format() {
+        let (dims, px) = solid_8x8();
+        let file = manifold::mnf9::encode_exact(&px, dims).unwrap();
+        // Codec 5 under an RGBA8 header: reject (grammar rule 9).
+        let hdr = ContainerHeader {
+            pixel_format: PixelFormat::Rgba8,
+            ..hdr_for(dims.width, dims.height)
+        };
+        let buf = wrap_with(&hdr, &[(ChunkType::Pixel, Codec::MnF9, &file)]);
+        let (h, chunks) = parse(&buf).unwrap();
+        let err = decode_pixels(&h, &chunks).unwrap_err();
+        assert!(format!("{err}").contains("RGB8"), "got: {err}");
     }
 
     #[test]

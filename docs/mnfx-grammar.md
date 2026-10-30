@@ -11,7 +11,7 @@ normative reference.
 | ------ | ---- | ---------- | --------------------------------------- |
 | 0      | 4    | magic      | `MNFX`                                  |
 | 4      | 2    | version    | u16 LE; v1 = 1                          |
-| 6      | 1    | pix fmt    | v1 = 1 (RGB8)                           |
+| 6      | 1    | pix fmt    | 1 RGB8, 2 RGBA8, 3 Gray8, 4 GrayA8      |
 | 7      | 1    | orient     | 1..=8; default 1 (samples unrotated)    |
 | 8      | 2    | chunk n    | u16 LE                                  |
 | 10     | 4    | width      | u32 LE                                  |
@@ -39,16 +39,28 @@ unknown >= 0x8000 reject, unknown < 0x8000 skip (lossless rewrite).
 3. Exactly one PIXEL chunk. Codec 5 (MNF9 embed) = whole-frame: one
    such layer, no other pixel layers; embed chunks carry raw_len = 0.
 4. Raw codec: raw_len == stored_len == payload length (checked).
-5. Zstd codec: the decompression bound enforced at decode (W1).
+5. Zstd codec: the decompression bound enforced at decode; checksum
+   mandatory, window_log_max 23, size bound+1 take-limit bomb check
+   (the manifold MNF7/MNF8 hardening, landed W2).
 6. Malformed input = `Error`, never panic.
 7. Plain RGB8 without wrapper semantics stays standalone
    MNF8/MNF9 (the +34-B framing rule: never double a small file).
 8. Lossless contracts: metadata payloads byte-for-byte; alpha
-   hidden-RGB preserved at W2; 16-bit hi/lo planes exact at W3.
+   hidden-RGB preserved byte-for-byte (the RGBA plane's color
+   channels are never premultiplied, stripped or re-derived); 16-bit
+   hi/lo planes exact at W3.
+9. Pixel plane bound = width × height × stride(pixel_format):
+   stride 3 RGB8, 4 RGBA8, 1 Gray8, 2 GrayA8 (W2). Raw planes must
+   equal the bound exactly; zstd planes decode TO the bound exactly.
+   Embed codecs (4/5) require pixel_format 1 (RGB8) — the engines'
+   native shape.
 
 ## Framing accounting (v1)
 
 Minimum = 18 + 16 = 34 B (one pixel chunk, one MNFX). The W0
 implementation's `serialize` + `parse` roundtrip on these numbers is
-asserted in the unit tests (11/11, incl. the CRC32C RFC 3720
-vectors).
+asserted in the unit tests (incl. the CRC32C RFC 3720 vectors). W1
+added the embedded==standalone differential gate (22 tests) and the
+30-file corpus gate (framing +34 B exact per file). W2 added the
+plane-format vocabulary (2/3/4), the stride-derived plane bound, and
+the hardened zstd plane decode (24 unit tests).

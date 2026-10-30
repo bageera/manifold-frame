@@ -30,11 +30,12 @@ fn parse_header(buf: &[u8]) -> Result<(ContainerHeader, usize)> {
         return Err(Error::fmt_msg("mnfx: zero dims"));
     }
     // The pixel-area bound: overflow rejects here rather than downstream
-    // (v1 RGB8 = 3 bytes/sample; later formats re-derive from stride).
-    const SAMPLE_STRIDE: u64 = 3;
+    // (stride derives from the header's pixel_format, not a remembered
+    // RGB8 constant — the W0 comment anticipated this extension).
+    let sample_stride = u64::from(pixel_format.stride_mult() as u32);
     let area = u64::from(width) * u64::from(height);
     let _expected_px_bytes = area
-        .checked_mul(SAMPLE_STRIDE)
+        .checked_mul(sample_stride)
         .ok_or_else(|| Error::fmt_msg("mnfx: dims overflow the pixel accounting"))?;
     if usize::from(chunk_count) > buf.len() / CHUNK_HEADER_SIZE {
         return Err(Error::fmt_msg("mnfx: chunk count exceeds the file length"));
