@@ -1,10 +1,13 @@
 # manifold-frame
 
-**MNFX** — a versioned lossless image container wrapping Manifold
-compression streams: alpha, 16-bit samples, color profiles, metadata,
-and orientation, added at the format boundary without modifying the
-MNF8/MNF9 compression engines (ADR-009 + its review in the manifold
-repo, `docs/adr-009-mnfx-review.md`).
+**MNFX** — a versioned lossless image container that wraps the
+[Manifold](https://github.com/bageera/manifold) compression streams
+(the `manifold-codec` crate = the MNF5–MNF9 encoder/decoder engines).
+The wrapper adds image semantics at the format boundary — alpha,
+16-bit samples, color profiles, metadata, orientation — without
+modifying the engines: an MNF8/MNF9 payload embedded under MNFX decodes
+byte-identically to its standalone decode. Design per ADR-009 and its
+review in the manifold repo (`docs/adr-009-mnfx-review.md`).
 
 Current status: **W1** — the MNF8/MNF9 embed layer shipped
 (`src/decode.rs`): pixel payloads are whole standalone engine files,
