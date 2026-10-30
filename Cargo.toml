@@ -9,8 +9,10 @@ repository = "https://github.com/bageera/manifold-frame"
 publish = false # W0-W1: name probes green (404); publish gate at W5
 
 [dependencies]
-# W0: stdlib only. W1 adds manifold-codec (the MNF8/MNF9 engines) and
-# zstd as the layer codecs through the existing feature set.
+# W1: the MNF8/MNF9 engines, by path (the engines stay unmodified — the
+# wrapper only routes embedded pixel layers to their pub decode fns).
+manifold-codec = { path = "../manifold" }
+zstd = "0.13"
 
 [features]
 default = []

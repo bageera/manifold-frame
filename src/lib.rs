@@ -26,7 +26,11 @@
 //! embed) = whole-frame, sole pixel layer; malformed input = Err,
 //! never panic.
 
+/// W1: pixel-layer decode (embedded == standalone gate).
+pub mod decode;
 pub mod error;
+/// The bounded container parser.
+pub mod parser;
 
 /// Container magic: `MNFX`.
 pub const MAGIC: [u8; 4] = *b"MNFX";
@@ -184,6 +188,5 @@ pub fn crc32c(data: &[u8]) -> u32 {
     }
     !crc
 }
-pub mod parser;
-
+pub use crate::decode::decode_pixels;
 pub use crate::parser::{parse, serialize};

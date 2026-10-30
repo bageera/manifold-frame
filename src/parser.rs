@@ -66,7 +66,6 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
     let (hdr, mut pos) = parse_header(buf)?;
     let mut chunks = Vec::with_capacity(usize::from(hdr.chunk_count).min(4096));
     let mut pixel_seen = false;
-    let mut mnf9_seen = false;
     for i in 0..u32::from(hdr.chunk_count) {
         if buf.len() < pos + CHUNK_HEADER_SIZE {
             return Err(Error::fmt_msg(format!("mnfx: truncated chunk header {i}")));
@@ -132,13 +131,12 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
                 return Err(Error::fmt_msg("mnfx: multiple pixel chunks"));
             }
             pixel_seen = true;
-            if codec == Codec::MnF9 {
-                mnf9_seen = true;
-            }
         } else if codec == Codec::MnF9 {
             return Err(Error::fmt_msg(format!(
                 "mnfx: chunk {i} uses codec 5 outside a pixel layer"
             )));
+            // Codec 4 on non-pixel chunks stays legal: W3 plane chunks
+            // (the grammar-frozen MNF8/zstd/raw vocabulary) use it.
         }
         chunks.push(Chunk {
             header: ChunkHeader {
@@ -154,17 +152,6 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
     }
     if !pixel_seen {
         return Err(Error::fmt_msg("mnfx: no pixel chunk"));
-    }
-    if mnf9_seen
-        && chunks
-            .iter()
-            .filter(|c| c.header.chunk_type == ChunkType::Pixel)
-            .count()
-            != 1
-    {
-        return Err(Error::fmt_msg(
-            "mnfx: the MNF9 layer must be the sole pixel layer",
-        ));
     }
     Ok((hdr, chunks))
 }
