@@ -1,0 +1,16 @@
+[package]
+name = "manifold-frame"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+description = "MNFX: a versioned lossless image container wrapping Manifold compression streams (alpha, 16-bit, metadata, orientation)"
+license = "MIT"
+repository = "https://github.com/bageera/manifold-frame"
+publish = false # W0-W1: name probes green (404); publish gate at W5
+
+[dependencies]
+# W0: stdlib only. W1 adds manifold-codec (the MNF8/MNF9 engines) and
+# zstd as the layer codecs through the existing feature set.
+
+[features]
+default = []
