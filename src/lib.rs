@@ -53,19 +53,33 @@ pub enum PixelFormat {
     Gray8 = 3,
     /// One GrayA8 plane.
     GrayA8 = 4,
+    /// 16-bit RGB: ONE PIX16-HI chunk + ONE PIX16-LO chunk (the
+    /// alphabet-relayout split). Samples decode big-endian interleaved
+    /// (PNG wire order): hi plane = each sample's first byte.
+    Rgb16 = 5,
+    /// 16-bit Gray: the same hi/lo plane split, 1 sample/pixel.
+    Gray16 = 6,
 }
 
 impl PixelFormat {
-    /// Bytes per sample: 3 RGB8, 4 RGBA8, 1 Gray8, 2 GrayA8. The
-    /// pixel-plane decode bound derives from this (never a remembered
-    /// constant — the fixture-geometry lesson).
+    /// Total pixel bytes per pixel: 3 RGB8, 4 RGBA8, 1 Gray8, 2 GrayA8,
+    /// 6 RGB16 (2 planes × 3), 2 Gray16. The plane bound derives from
+    /// this (never a remembered constant — the fixture-geometry lesson);
+    /// 16-bit plane chunks each carry exactly half.
     pub fn stride_mult(self) -> usize {
         match self {
             PixelFormat::Rgb8 => 3,
             PixelFormat::Rgba8 => 4,
             PixelFormat::Gray8 => 1,
             PixelFormat::GrayA8 => 2,
+            PixelFormat::Rgb16 => 6,
+            PixelFormat::Gray16 => 2,
         }
+    }
+
+    /// True for the 16-bit hi/lo-plane formats.
+    pub fn is_planar16(self) -> bool {
+        matches!(self, PixelFormat::Rgb16 | PixelFormat::Gray16)
     }
 }
 
@@ -78,6 +92,8 @@ impl std::convert::TryFrom<u8> for PixelFormat {
             2 => Ok(PixelFormat::Rgba8),
             3 => Ok(PixelFormat::Gray8),
             4 => Ok(PixelFormat::GrayA8),
+            5 => Ok(PixelFormat::Rgb16),
+            6 => Ok(PixelFormat::Gray16),
             _ => Err(()),
         }
     }
@@ -128,6 +144,10 @@ pub enum ChunkType {
     Cicp = 5,
     /// Display orientation override (1..=8).
     Orientation = 6,
+    /// 16-bit HIGH byte plane (W3; one per 16-bit container).
+    Pix16Hi = 7,
+    /// 16-bit LOW byte plane (W3; one per 16-bit container).
+    Pix16Lo = 8,
     /// Unknown/extension types.
     Unknown(u16),
 }
@@ -141,6 +161,8 @@ impl ChunkType {
             4 => ChunkType::Icc,
             5 => ChunkType::Cicp,
             6 => ChunkType::Orientation,
+            7 => ChunkType::Pix16Hi,
+            8 => ChunkType::Pix16Lo,
             other => ChunkType::Unknown(other),
         }
     }
@@ -153,6 +175,8 @@ impl ChunkType {
             ChunkType::Icc => 4,
             ChunkType::Cicp => 5,
             ChunkType::Orientation => 6,
+            ChunkType::Pix16Hi => 7,
+            ChunkType::Pix16Lo => 8,
             ChunkType::Unknown(v) => v,
         }
     }

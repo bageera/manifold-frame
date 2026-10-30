@@ -29,6 +29,11 @@ pub struct Pixels {
 /// raw_len bound checks the exact size); zstd itself lands at W2 with the
 /// alpha layer (ponytail: raw/zstd cover no shipped producer yet).
 pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
+    // 16-bit hi/lo plane formats: the pixels are the PIX16-HI/LO pair
+    // (the parser enforces exactly one each, no Pixel chunk).
+    if hdr.pixel_format.is_planar16() {
+        return decode_planar16(hdr, chunks);
+    }
     let pixel = chunks
         .iter()
         .find(|c| c.header.chunk_type == ChunkType::Pixel)
@@ -118,6 +123,66 @@ fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
     w.checked_mul(h)
         .and_then(|a| a.checked_mul(hdr.pixel_format.stride_mult()))
         .ok_or_else(|| Error::fmt_msg("mnfx: pixel area overflows usize"))
+}
+
+/// Decode a 16-bit container: join PIX16-HI + PIX16-LO into the
+/// interleaved big-endian sample plane (PNG wire order: hi plane = each
+/// sample's first byte). Each plane chunk carries exactly half the
+/// plane bound, per its own codec (raw/zstd; embed codecs stay RGB8-only
+/// by rule 9, so plane chunks must not carry them).
+fn decode_planar16(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
+    let dims = manifold::codec::Dims {
+        width: hdr.width,
+        height: hdr.height,
+    };
+    let half = plane_bound(hdr)? / 2;
+    let mut planes: [Option<Vec<u8>>; 2] = [None, None];
+    for c in chunks {
+        let slot = match c.header.chunk_type {
+            ChunkType::Pix16Hi => 0usize,
+            ChunkType::Pix16Lo => 1usize,
+            _ => continue,
+        };
+        if c.header.codec == Codec::MnF8 || c.header.codec == Codec::MnF9 {
+            return Err(Error::fmt_msg(format!(
+                "mnfx: 16-bit plane chunk {slot} must not carry an embed codec"
+            )));
+        }
+        let raw = match c.header.codec {
+            Codec::Raw => {
+                if c.stored.len() != half || c.header.raw_len as usize != half {
+                    return Err(Error::fmt_msg(format!(
+                        "mnfx: 16-bit plane {slot} {} B != half-bound {} B",
+                        c.stored.len(),
+                        half
+                    )));
+                }
+                c.stored.clone()
+            }
+            Codec::Zstd => decompress_bounded(&c.stored, half)?,
+            _ => {
+                return Err(Error::fmt_msg(
+                    "mnfx: 16-bit plane codec must be raw or zstd",
+                ))
+            }
+        };
+        planes[slot] = Some(raw);
+    }
+    let (hi, lo) = match planes {
+        [Some(h), Some(l)] => (h, l),
+        _ => return Err(Error::fmt_msg("mnfx: no pixel chunk")),
+    };
+    // Interleave: samples[n] = (hi[n], lo[n]) big-endian.
+    let mut samples = Vec::with_capacity(hi.len() * 2);
+    for i in 0..hi.len() {
+        samples.push(hi[i]);
+        samples.push(lo[i]);
+    }
+    Ok(Pixels {
+        dims,
+        format: hdr.pixel_format,
+        samples,
+    })
 }
 
 /// A raw (uncompressed) plane re-bounded by the header-derived length.
@@ -460,5 +525,209 @@ mod tests {
         let file = manifold::mnf9::encode_exact(&px, dims).unwrap();
         let buf = wrap(&file, Codec::MnF9, dims.width, dims.height);
         assert_eq!(buf.len() - file.len(), 34);
+    }
+
+    // ---- W3: 16-bit hi/lo plane layers ----
+
+    fn gray16_hdr(w: u32, h: u32) -> ContainerHeader {
+        planar16_hdr(PixelFormat::Gray16, w, h, 0)
+    }
+
+    fn planar16_hdr(fmt: PixelFormat, w: u32, h: u32, extra: usize) -> ContainerHeader {
+        ContainerHeader {
+            pixel_format: fmt,
+            chunk_count: 2 + extra as u16, // the HI/LO pair (+ extras)
+            ..hdr_for(w, h)
+        }
+    }
+
+    #[test]
+    fn gray16_hilo_planes_interleave_bigendian() {
+        // The interleave-order pin: sample n = (hi[n], lo[n]). Build
+        // planes whose bytes differ so a swapped join fails loudly.
+        let (w, h) = (8u32, 8u32);
+        let mut hi = Vec::new();
+        let mut lo = Vec::new();
+        for i in 0..(w * h) as usize {
+            hi.push((i % 200) as u8 + 1);
+            lo.push(((i * 7) % 200) as u8 + 2);
+        }
+        let hdr = gray16_hdr(w, h);
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pix16Hi, Codec::Raw, &hi),
+                (ChunkType::Pix16Lo, Codec::Raw, &lo),
+            ],
+        );
+        let (hc, chunks) = parse(&buf).unwrap();
+        let got = decode_pixels(&hc, &chunks).unwrap();
+        assert_eq!(got.format, PixelFormat::Gray16);
+        let mut want = Vec::with_capacity(hi.len() * 2);
+        for i in 0..hi.len() {
+            want.push(hi[i]);
+            want.push(lo[i]);
+        }
+        assert_eq!(got.samples, want);
+        // And the u16 read-back is big-endian.
+        let first = u16::from_be_bytes([got.samples[0], got.samples[1]]);
+        assert_eq!(first, u16::from(hi[0]) * 256 + u16::from(lo[0]));
+    }
+
+    #[test]
+    fn rgb16_planes_roundtrip() {
+        let (w, h) = (8u32, 8u32);
+        let hdr = planar16_hdr(PixelFormat::Rgb16, w, h, 0);
+        let mut hi = Vec::new();
+        let mut lo = Vec::new();
+        for i in 0..(w * h * 3) as usize {
+            hi.push((i % 251) as u8);
+            lo.push(((i * 13) % 251) as u8);
+        }
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pix16Hi, Codec::Raw, &hi),
+                (ChunkType::Pix16Lo, Codec::Raw, &lo),
+            ],
+        );
+        let (hc, chunks) = parse(&buf).unwrap();
+        let got = decode_pixels(&hc, &chunks).unwrap();
+        assert_eq!(got.format, PixelFormat::Rgb16);
+        assert_eq!(got.samples.len(), (w * h * 6) as usize);
+        let mut want = Vec::with_capacity(hi.len() * 2);
+        for i in 0..hi.len() {
+            want.push(hi[i]);
+            want.push(lo[i]);
+        }
+        assert_eq!(got.samples, want);
+    }
+
+    #[test]
+    fn gray16_zstd_plane_roundtrip() {
+        let (w, h) = (8u32, 8u32);
+        let hdr = gray16_hdr(w, h);
+        let mut hi = Vec::new();
+        let mut lo = Vec::new();
+        for i in 0..(w * h) as usize {
+            hi.push((i * 3 % 251) as u8);
+            lo.push((i * 5 % 251) as u8);
+        }
+        use std::io::Write;
+        let zstd_plane = |p: &[u8]| {
+            let mut e = zstd::stream::Encoder::new(Vec::new(), 19).unwrap();
+            e.include_checksum(true).unwrap();
+            e.write_all(p).unwrap();
+            e.finish().unwrap()
+        };
+        let hi_frame = zstd_plane(&hi);
+        let lo_frame = zstd_plane(&lo);
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pix16Hi, Codec::Zstd, &hi_frame),
+                (ChunkType::Pix16Lo, Codec::Zstd, &lo_frame),
+            ],
+        );
+        let (hc, chunks) = parse(&buf).unwrap();
+        let got = decode_pixels(&hc, &chunks).unwrap();
+        let mut want = Vec::with_capacity(hi.len() * 2);
+        for i in 0..hi.len() {
+            want.push(hi[i]);
+            want.push(lo[i]);
+        }
+        assert_eq!(got.samples, want);
+    }
+
+    #[test]
+    fn plane_size_mismatch_rejects() {
+        let (w, h) = (8u32, 8u32);
+        let hdr = gray16_hdr(w, h);
+        let hi = vec![1u8; (w * h) as usize];
+        let lo_short = vec![2u8; (w * h) as usize - 1];
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pix16Hi, Codec::Raw, &hi),
+                (ChunkType::Pix16Lo, Codec::Raw, &lo_short),
+            ],
+        );
+        let (hc, chunks) = parse(&buf).unwrap();
+        let err = decode_pixels(&hc, &chunks).unwrap_err();
+        assert!(format!("{err}").contains("half-bound"), "got: {err}");
+    }
+
+    #[test]
+    fn parser_rejects_16bit_shape_errors() {
+        let (w, h) = (8u32, 8u32);
+        let hi = vec![1u8; (w * h) as usize];
+        let lo = vec![2u8; (w * h) as usize];
+        let px8 = vec![7u8; (w * h * 3) as usize];
+        // Plane chunks under an RGB8 header: reject.
+        let rgb8_hdr = hdr_for(w, h);
+        let buf = wrap_with(&rgb8_hdr, &[(ChunkType::Pix16Hi, Codec::Raw, &hi)]);
+        assert!(parse(&buf).is_err());
+        // Duplicate HI plane: reject.
+        let dup_hdr = planar16_hdr(PixelFormat::Gray16, w, h, 1);
+        let buf = wrap_with(
+            &dup_hdr,
+            &[
+                (ChunkType::Pix16Hi, Codec::Raw, &hi),
+                (ChunkType::Pix16Hi, Codec::Raw, &hi),
+                (ChunkType::Pix16Lo, Codec::Raw, &lo),
+            ],
+        );
+        assert!(parse(&buf).is_err());
+        // Missing LO plane: reject. Header must claim ONE chunk (serialize
+        // asserts chunk_count == chunks.len(); the missing-plane reject
+        // fires in parse's post-check). Build that header directly.
+        let miss_hdr = ContainerHeader {
+            pixel_format: PixelFormat::Gray16,
+            chunk_count: 1,
+            ..hdr_for(w, h)
+        };
+        let buf = wrap_with(&miss_hdr, &[(ChunkType::Pix16Hi, Codec::Raw, &hi)]);
+        assert!(parse(&buf).is_err());
+        // Pixel chunk INSIDE a 16-bit container: reject (no double-booking).
+        let both_hdr = planar16_hdr(PixelFormat::Gray16, w, h, 1);
+        let buf = wrap_with(
+            &both_hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &px8),
+                (ChunkType::Pix16Hi, Codec::Raw, &hi),
+                (ChunkType::Pix16Lo, Codec::Raw, &lo),
+            ],
+        );
+        assert!(parse(&buf).is_err());
+    }
+
+    #[test]
+    fn embed_codec_rejected_on_plane_chunk() {
+        let (w, h) = (8u32, 8u32);
+        let hi = vec![1u8; (w * h) as usize];
+        let lo = vec![2u8; (w * h) as usize];
+        let hdr = gray16_hdr(w, h);
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pix16Hi, Codec::MnF8, &hi),
+                (ChunkType::Pix16Lo, Codec::Raw, &lo),
+            ],
+        );
+        let (hc, chunks) = parse(&buf).unwrap();
+        assert!(decode_pixels(&hc, &chunks).is_err());
+    }
+
+    #[test]
+    fn parse_rejects_plane_chunk_under_rgb8_post_state_too() {
+        // A 16-bit container whose ONLY chunk is a Pixel chunk (the
+        // 8-bit shape): the post-check must reject the missing planes.
+        let (w, h) = (8u32, 8u32);
+        // Build raw bytes by hand: Gray16 header, single Pixel chunk.
+        // serialize can't express it, so patch a serialized RGB8 file.
+        let px8 = vec![7u8; (w * h * 3) as usize];
+        let mut buf = wrap(&px8, Codec::Raw, w, h);
+        buf[6] = PixelFormat::Gray16 as u8; // fmt field from 1 → 6
+        assert!(parse(&buf).is_err());
     }
 }

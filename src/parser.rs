@@ -67,6 +67,8 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
     let (hdr, mut pos) = parse_header(buf)?;
     let mut chunks = Vec::with_capacity(usize::from(hdr.chunk_count).min(4096));
     let mut pixel_seen = false;
+    // [hi_seen, lo_seen] for the 16-bit plane chunks.
+    let mut slots_seen = [false; 2];
     for i in 0..u32::from(hdr.chunk_count) {
         if buf.len() < pos + CHUNK_HEADER_SIZE {
             return Err(Error::fmt_msg(format!("mnfx: truncated chunk header {i}")));
@@ -139,6 +141,25 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
             // Codec 4 on non-pixel chunks stays legal: W3 plane chunks
             // (the grammar-frozen MNF8/zstd/raw vocabulary) use it.
         }
+        // 16-bit plane chunks: exactly one of each, and only under a
+        // 16-bit pixel format (grammar rule 10).
+        if matches!(chunk_type, ChunkType::Pix16Hi | ChunkType::Pix16Lo) {
+            let slot = matches!(chunk_type, ChunkType::Pix16Hi);
+            if slots_seen[slot as usize] {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: duplicate {} plane chunk",
+                    if slot { "PIX16-HI" } else { "PIX16-LO" }
+                )));
+            }
+            slots_seen[slot as usize] = true;
+            if !hdr.pixel_format.is_planar16() {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: {} plane chunk requires a 16-bit pixel format, got {}",
+                    if slot { "PIX16-HI" } else { "PIX16-LO" },
+                    hdr.pixel_format as u8
+                )));
+            }
+        }
         chunks.push(Chunk {
             header: ChunkHeader {
                 chunk_type,
@@ -150,6 +171,22 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
             },
             stored: payload.to_vec(),
         });
+    }
+    // Pixel accounting is format-conditional: 8-bit formats carry the
+    // pixels in ONE Pixel chunk; the 16-bit formats carry them as the
+    // PIX16-HI/LO pair instead (a Pixel chunk there = double-booking).
+    if hdr.pixel_format.is_planar16() {
+        if pixel_seen {
+            return Err(Error::fmt_msg(
+                "mnfx: a 16-bit container's pixels are the PIX16-HI/LO pair, not a Pixel chunk",
+            ));
+        }
+        if !slots_seen[0] || !slots_seen[1] {
+            return Err(Error::fmt_msg(
+                "mnfx: a 16-bit container needs one PIX16-HI and one PIX16-LO chunk",
+            ));
+        }
+        return Ok((hdr, chunks));
     }
     if !pixel_seen {
         return Err(Error::fmt_msg("mnfx: no pixel chunk"));
