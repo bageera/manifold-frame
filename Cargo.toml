@@ -12,9 +12,10 @@ categories = ["compression", "multimedia::images"]
 publish = true # the registry consumer gate passed; publication follows
 
 [dependencies]
-# W1: the MNF8/MNF9 engines, by path (the engines stay unmodified — the
-# wrapper only routes embedded pixel layers to their pub decode fns).
-manifold-codec = { path = "../manifold" }
+# W1: the MNF8/MNF9 engines (the engines stay unmodified — the wrapper
+# only routes embedded pixel layers to their pub decode fns). Published
+# consumers resolve the registry version; the path = the working tree.
+manifold-codec = { path = "../manifold", version = "1.14" }
 zstd = "0.13"
 
 [features]
