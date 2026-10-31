@@ -99,4 +99,8 @@ metadata surface: duplicate known-chunk rejects (rule 11), the
 ICC > CICP + EXIF-tag > header orientation semantics (rule 12), the
 boundary validators, u32 wraparound-safe serialize, and the W3-R1
 rate control (split vs interleaved measured; interleaved wins the
-photo class) — 37 unit tests + the W4-C differential test.
+photo class) — 37 unit tests + the W4-C differential test. W5 added
+the integrated encoder (`mnfx` CLI: automatic engine pick = MNF8
+profile-arm vs MNF9 whole-frame arm at complete-file size) with the
+mutation fuzzer (340 trials 0 panics; accepted set = pure appends
+only).

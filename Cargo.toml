@@ -6,7 +6,7 @@ rust-version = "1.91"
 description = "MNFX: a versioned lossless image container wrapping Manifold compression streams (alpha, 16-bit, metadata, orientation)"
 license = "MIT"
 repository = "https://github.com/bageera/manifold-frame"
-publish = false # W0-W1: name probes green (404); publish gate at W5
+publish = false # the registry consumer gate (W5) decides publication
 
 [dependencies]
 # W1: the MNF8/MNF9 engines, by path (the engines stay unmodified — the
@@ -16,3 +16,10 @@ zstd = "0.13"
 
 [features]
 default = []
+# The CLI (encode/decode/verify) needs the engines' image-io surface.
+cli = ["manifold-codec/image-io"]
+
+[[bin]]
+name = "mnfx"
+path = "src/main.rs"
+required-features = ["cli"]

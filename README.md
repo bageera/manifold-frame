@@ -37,7 +37,24 @@ Corpus gate (`tests/corpus_embed.rs`): all 30 corpus files — embedded
 decode == standalone decode == source pixels, framing exactly +34 B per
 file, measured table in the test log.
 
-W5 next: integrated encoder (PNG/TIFF→MNFX choosing valid methods),
-C ABI, fuzz, registry consumer — the reviewer's central acceptance
-requirement: real image in, complete image info (pixels + metadata +
-color + orientation) back out, nothing unintended lost.
+Current status: **W5** — the integrated encoder + CLI shipped:
+
+- `mnfx` CLI (`src/main.rs`, feature `cli` = the engines' image-io):
+  `encode <png> -o <mnfx>` runs the automatic engine pick (MNF8 at the
+  chosen profile competes with the MNF9 whole-frame arm at complete
+  file size — the manifold CLI's flow); `decode <mnfx> -o <png>`
+  restores the image; `verify <image> <mnfx>` prints PASS/FAIL
+  (exit 0/1). Real-pipeline smoke: document 200×280 = 586 B (+34
+  framing), PNG-plane byte-identical after decode.
+- W5 acceptance test (`tests/w5_acceptance.rs`): real PNG → MNFX
+  (engine pick + ICC chunk) → decode returns pixel-exact bytes + the
+  preserved ICC; corrupted containers (byte flips at header/payload/
+  CRC positions, truncations) reject or decode — never panic.
+- Fuzz (`scripts/fuzz.py`, the manifold shape): encode every corpus
+  image, mutate (flips/truncations/appends), decode must not panic —
+  measured 340 trials, 0 panics, 0 structurally-corrupt accepts (the
+  accepted set = pure appends only; all flips/truncations rejected by
+  CRC/parser).
+- The registry-consumer + C ABI gates stay the publication-decision
+  items (C ABI opt-in per the freeze; `publish = false` until a
+  consumer run exists).
