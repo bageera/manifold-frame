@@ -6,7 +6,10 @@ rust-version = "1.91"
 description = "MNFX: a versioned lossless image container wrapping Manifold compression streams (alpha, 16-bit, metadata, orientation)"
 license = "MIT"
 repository = "https://github.com/bageera/manifold-frame"
-publish = false # the registry consumer gate (W5) decides publication
+readme = "README.md"
+keywords = ["image", "lossless", "codec", "container", "mnfx"]
+categories = ["compression", "multimedia::images"]
+publish = true # the registry consumer gate passed; publication follows
 
 [dependencies]
 # W1: the MNF8/MNF9 engines, by path (the engines stay unmodified — the
