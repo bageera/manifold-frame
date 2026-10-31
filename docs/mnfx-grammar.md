@@ -65,9 +65,25 @@ Chunk types: 1 PIXEL, 2 EXIF, 3 XMP, 4 ICC, 5 CICP, 6 ORNT, 7 PIX16-HI,
    codecs; each plane's payload = half the plane bound, per its own
    codec. Decode joins them big-endian interleaved (PNG wire order):
    sample[n] = hi[n] << 8 | lo[n]. The hi/lo split is the
-   alphabet-relayout arm; an interleaved-zstd control (the same bytes
+   alphabet-relayout arm; the interleaved-zstd control (the same bytes
    as one interleaved plane) is the mandatory comparison in the
-   promotion gate when either arm is measured for rate.
+   promotion gate when either arm is measured for rate. W3-R1 MEASURED
+   (photo fixture, zstd-19, no metadata): split 2-chunk wire 47,990 B
+   vs interleaved 1-chunk 27,021 B — interleaved wins by ~44%; the
+   split stays vocabulary (its payload may still be the cheaper
+   per-plane shape for content with sparse low bytes; measure per
+   corpus class before any rate claim).
+11. Known metadata chunks (EXIF/XMP/ICC/CICP/ORNT) carry EXACTLY ONE
+   each; duplicates reject rather than merge (a repeated profile or
+   double orientation has no single meaning). Order is preserved
+   through parse→serialize (the lossless rewrite contract; W4-A).
+12. Metadata semantics (W4-B): color precedence ICC > CICP (the PNG
+   spec's rule referenced, not restated); EXIF orientation tag 0x0112
+   > header orientation field > default 1; ORNT (1 B, 1..=8) mirrors
+   the header field. CICP = 4 bytes; EXIF = a TIFF byte-order shell
+   ("II"/"MM" + 42). Boundary validation ONLY: the full EXIF/ICC/
+   XMP structures belong to consumers — the container preserves
+   bytes and never interprets what it doesn't check.
 
 ## Framing accounting (v1)
 
@@ -78,4 +94,9 @@ added the embedded==standalone differential gate (22 tests) and the
 30-file corpus gate (framing +34 B exact per file). W2 added the
 plane-format vocabulary (2/3/4), the stride-derived plane bound, and
 the hardened zstd plane decode. W3 added the 16-bit hi/lo plane shape
-(formats 5/6, chunk types 7/8, big-endian interleave) — 32 unit tests.
+(formats 5/6, chunk types 7/8, big-endian interleave). W4 added the
+metadata surface: duplicate known-chunk rejects (rule 11), the
+ICC > CICP + EXIF-tag > header orientation semantics (rule 12), the
+boundary validators, u32 wraparound-safe serialize, and the W3-R1
+rate control (split vs interleaved measured; interleaved wins the
+photo class) — 37 unit tests + the W4-C differential test.

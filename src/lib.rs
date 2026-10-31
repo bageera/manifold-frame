@@ -235,5 +235,5 @@ pub fn crc32c(data: &[u8]) -> u32 {
     }
     !crc
 }
-pub use crate::decode::decode_pixels;
+pub use crate::decode::{decode_image, decode_pixels, Metadata};
 pub use crate::parser::{parse, serialize};

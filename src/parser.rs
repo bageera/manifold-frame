@@ -69,6 +69,8 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
     let mut pixel_seen = false;
     // [hi_seen, lo_seen] for the 16-bit plane chunks.
     let mut slots_seen = [false; 2];
+    // [EXIF, XMP, ICC, CICP, ORNT] — one each (rule 11).
+    let mut meta_seen = [false; 5];
     for i in 0..u32::from(hdr.chunk_count) {
         if buf.len() < pos + CHUNK_HEADER_SIZE {
             return Err(Error::fmt_msg(format!("mnfx: truncated chunk header {i}")));
@@ -160,6 +162,33 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
                 )));
             }
         }
+        // Known metadata chunks: exactly one each (grammar rule 11; a
+        // repeated EXIF/XMP/ICC/CICP/ORNT has no single meaning —
+        // reject, don't merge).
+        if matches!(
+            chunk_type,
+            ChunkType::Exif
+                | ChunkType::Xmp
+                | ChunkType::Icc
+                | ChunkType::Cicp
+                | ChunkType::Orientation
+        ) {
+            let slot = chunk_type.raw();
+            let idx = match chunk_type {
+                ChunkType::Exif => 0,
+                ChunkType::Xmp => 1,
+                ChunkType::Icc => 2,
+                ChunkType::Cicp => 3,
+                ChunkType::Orientation => 4,
+                _ => unreachable!("matched above"),
+            };
+            if meta_seen[idx] {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: duplicate metadata chunk type {slot}"
+                )));
+            }
+            meta_seen[idx] = true;
+        }
         chunks.push(Chunk {
             header: ChunkHeader {
                 chunk_type,
@@ -218,13 +247,18 @@ pub fn serialize(
         out.extend_from_slice(&t.to_le_bytes());
         out.push(*codec as u8);
         out.push(0u8); // flags reserved
+                       // u32 length fields: try_from + reject, never a silent wrap
+                       // (a lying length header corrupts the parse far from the cause).
         let raw_len = match codec {
-            Codec::Raw => payload.len() as u32,
+            Codec::Raw => u32::try_from(payload.len())
+                .map_err(|_| Error::fmt_msg("mnfx: raw payload too large for u32 raw_len"))?,
             Codec::MnF8 | Codec::MnF9 => 0u32,
             Codec::Zstd => 0u32, // set by the zstd layer at W1
         };
         out.extend_from_slice(&raw_len.to_le_bytes());
-        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        let stored =
+            u32::try_from(payload.len()).map_err(|_| Error::fmt_msg("mnfx: payload too large"))?;
+        out.extend_from_slice(&stored.to_le_bytes());
         out.extend_from_slice(&crc32c(payload).to_le_bytes());
         out.extend_from_slice(payload);
     }

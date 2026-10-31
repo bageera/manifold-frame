@@ -114,6 +114,132 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
     })
 }
 
+/// The complete decoded image: pixels + the W4 metadata surface.
+///
+/// Semantics (grammar rule 12): color precedence ICC > CICP (the PNG
+/// spec's own rule); orientation = EXIF tag > header field (the
+/// header's default 1 applies only when no EXIF orientation chunk is
+/// present, and an ORNT chunk mirrors the header field). Samples are
+/// NEVER rotated at decode — the container stores pixels unrotated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Metadata<'a> {
+    /// EXIF payload (preserved bytes; TIFF/HEIF structure per EXIF spec).
+    pub exif: Option<&'a [u8]>,
+    /// XMP packet (preserved bytes; RDF/XML).
+    pub xmp: Option<&'a [u8]>,
+    /// ICC profile (preserved bytes; color management's source of truth).
+    pub icc: Option<&'a [u8]>,
+    /// CICP signaling (preserved bytes).
+    pub cicp: Option<&'a [u8]>,
+    /// Orientation 1..=8: EXIF orientation tag takes precedence over
+    /// the header field; the header's value is the fallback.
+    pub orientation: u8,
+}
+
+/// Extract the metadata surface from parsed chunks (validated: ORNT
+/// payload must be one byte 1..=8; CICP exactly 4 bytes; EXIF must
+/// start with a byte-order marker — the minimal preservation-boundary
+/// checks; full structure is the consumer's job).
+fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<Metadata<'a>> {
+    let mut m = Metadata {
+        exif: None,
+        xmp: None,
+        icc: None,
+        cicp: None,
+        orientation: hdr.orientation,
+    };
+    for c in chunks {
+        let p = &*c.stored;
+        match c.header.chunk_type {
+            ChunkType::Exif => {
+                // EXIF starts "II"/2A00 or "MM"/002A (byte order + 42);
+                // anything else will not parse for ANY consumer.
+                let ok = p.len() >= 8
+                    && matches!(&p[0..2], b"II" | b"MM")
+                    && (p[2..4] == [42, 0] || p[2..4] == [0, 42]);
+                if !ok {
+                    return Err(Error::fmt_msg(
+                        "mnfx: EXIF payload lacks a TIFF byte-order header",
+                    ));
+                }
+                m.exif = Some(p);
+                // EXIF orientation tag 0x0112 (SHORT, count 1) overrides
+                // the header field (rule 12); read both TIFF byte orders.
+                // Full IFD walking is the consumer's job (ponytail: the
+                // container only arbitrates precedence, not EXIF parsing).
+                m.orientation = read_exif_orientation(p).unwrap_or(hdr.orientation);
+            }
+            ChunkType::Xmp => m.xmp = Some(p),
+            ChunkType::Icc => m.icc = Some(p),
+            ChunkType::Cicp => {
+                if p.len() != 4 {
+                    return Err(Error::fmt_msg(format!(
+                        "mnfx: CICP payload {} B != 4",
+                        p.len()
+                    )));
+                }
+                m.cicp = Some(p);
+            }
+            ChunkType::Orientation => {
+                if p.len() != 1 || !(1..=8).contains(&p[0]) {
+                    return Err(Error::fmt_msg(format!(
+                        "mnfx: ORNT payload must be one byte 1..=8 (got {} B)",
+                        p.len()
+                    )));
+                }
+                m.orientation = p[0];
+            }
+            _ => {}
+        }
+    }
+    Ok(m)
+}
+
+/// Read EXIF's orientation tag (0x0112, type SHORT) by walking IFD0
+/// entries in either TIFF byte order; None = tag absent or malformed.
+fn read_exif_orientation(p: &[u8]) -> Option<u8> {
+    let be = p[0..2] == *b"MM";
+    let u16_at = |b: &[u8]| {
+        if be {
+            u16::from_be_bytes([b[0], b[1]])
+        } else {
+            u16::from_le_bytes([b[0], b[1]])
+        }
+    };
+    let u32_at = |b: &[u8]| {
+        if be {
+            u32::from_be_bytes([b[0], b[1], b[2], b[3]])
+        } else {
+            u32::from_le_bytes([b[0], b[1], b[2], b[3]])
+        }
+    };
+    let ifd = usize::try_from(u32_at(&p[4..8])).ok()?;
+    let n = usize::from(u16_at(p.get(ifd..ifd + 2)?));
+    for k in 0..n {
+        let e = p.get(ifd + 2 + k * 12..ifd + 2 + (k + 1) * 12)?;
+        let (tag, typ, cnt) = (u16_at(&e[0..2]), u16_at(&e[2..4]), u32_at(&e[4..8]));
+        if tag == 0x0112 && typ == 3 && cnt == 1 {
+            let v = if be {
+                u16::from_be_bytes([e[8], e[9]])
+            } else {
+                u16::from_le_bytes([e[8], e[9]])
+            };
+            return ((1..=8).contains(&v)).then_some(v as u8);
+        }
+    }
+    None
+}
+
+/// Decode a container fully: pixels + validated metadata.
+pub fn decode_image<'a>(
+    hdr: &ContainerHeader,
+    chunks: &'a [Chunk],
+) -> Result<(Pixels, Metadata<'a>)> {
+    let px = decode_pixels(hdr, chunks)?;
+    let meta = validate_metadata(hdr, chunks)?;
+    Ok((px, meta))
+}
+
 /// The exact byte length of the pixel plane: width × height × stride(format).
 fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
     let w =
@@ -729,5 +855,208 @@ mod tests {
         let mut buf = wrap(&px8, Codec::Raw, w, h);
         buf[6] = PixelFormat::Gray16 as u8; // fmt field from 1 → 6
         assert!(parse(&buf).is_err());
+    }
+
+    // ---- W4: metadata preservation + semantics ----
+
+    /// A minimal valid EXIF TIFF header (LE byte order, magic 42, one IFD
+    /// offset) — just enough to pass the byte-order boundary check.
+    fn exif_bytes() -> Vec<u8> {
+        let mut v = b"II".to_vec();
+        v.extend_from_slice(&42u16.to_le_bytes()); // the magic
+        v.extend_from_slice(&8u32.to_le_bytes()); // first IFD offset
+        v.extend_from_slice(&0u16.to_le_bytes()); // IFD entry count 0
+        v
+    }
+
+    #[test]
+    fn metadata_preserves_payloads_byte_for_byte() {
+        // W4-A: a metadata-heavy container roundtrips every payload
+        // byte-exact, in order, through parse + decode_image.
+        let exif = exif_bytes();
+        let xmp = b"<x:xmpmeta>packet-body-0xF00F</x:xmpmeta>".to_vec();
+        let mut icc = vec![0u8; 132];
+        icc[0..4].copy_from_slice(&128u32.to_be_bytes()); // profile size
+        icc[36..40].copy_from_slice(b"mnfr"); // fake color-space sig
+        let cicp = [9u8, 16, 0, 1]; // BT.2100 PQish
+        let hdr = ContainerHeader {
+            chunk_count: 6,
+            ..hdr_for(8, 8)
+        };
+        let plane = vec![3u8; 8 * 8 * 3];
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Exif, Codec::Raw, &exif),
+                (ChunkType::Xmp, Codec::Raw, &xmp),
+                (ChunkType::Icc, Codec::Raw, &icc),
+                (ChunkType::Cicp, Codec::Raw, &cicp),
+                (ChunkType::Unknown(0x0011), Codec::Raw, &[1, 2, 3]),
+            ],
+        );
+        // Round-trip 1: bytes→parse→serialize == bytes (the lossless
+        // rewrite contract, order preserved).
+        let (h1, c1) = parse(&buf).unwrap();
+        let re = serialize(
+            &h1,
+            &c1.iter()
+                .map(|c| (c.header.chunk_type, c.header.codec, &*c.stored))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        assert_eq!(re, buf, "parse+serialize must rewrite losslessly");
+        // Round-trip 2: decode_image returns the exact payload references.
+        let (px, meta) = decode_image(&h1, &c1).unwrap();
+        assert_eq!(meta.exif, Some(&exif[..]));
+        assert_eq!(meta.xmp, Some(&xmp[..]));
+        assert_eq!(meta.icc, Some(&icc[..]));
+        assert_eq!(meta.cicp, Some(&cicp[..]));
+        assert_eq!(px.samples, plane);
+    }
+
+    #[test]
+    fn parser_rejects_duplicate_metadata_chunks() {
+        let plane = vec![3u8; 8 * 8 * 3];
+        let exif = exif_bytes();
+        let hdr = ContainerHeader {
+            chunk_count: 3,
+            ..hdr_for(8, 8)
+        };
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Exif, Codec::Raw, &exif),
+                (ChunkType::Exif, Codec::Raw, &exif),
+            ],
+        );
+        assert!(parse(&buf).is_err(), "duplicate EXIF must reject");
+        // Same for ORNT.
+        let hdr2 = ContainerHeader {
+            chunk_count: 3,
+            ..hdr_for(8, 8)
+        };
+        let buf = wrap_with(
+            &hdr2,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Orientation, Codec::Raw, &[6]),
+                (ChunkType::Orientation, Codec::Raw, &[7]),
+            ],
+        );
+        assert!(parse(&buf).is_err(), "duplicate ORNT must reject");
+    }
+
+    #[test]
+    fn orientation_exif_overrides_header_fallback() {
+        // W4-B: EXIF orientation (big-endian tag 0x0112) wins; the
+        // header field is the fallback.
+        let plane = vec![3u8; 8 * 8 * 3];
+        // MINIMAL EXIF with an orientation entry: IFD offset 8, 1 entry.
+        let mut exif = b"II".to_vec();
+        exif.extend_from_slice(&42u16.to_le_bytes());
+        exif.extend_from_slice(&8u32.to_le_bytes());
+        exif.extend_from_slice(&1u16.to_le_bytes()); // 1 IFD entry
+        exif.extend_from_slice(&0x0112u16.to_le_bytes()); // tag
+        exif.extend_from_slice(&3u16.to_le_bytes()); // type SHORT
+        exif.extend_from_slice(&1u32.to_le_bytes()); // count
+        exif.extend_from_slice(&6u16.to_le_bytes()); // value: 6
+        exif.extend_from_slice(&0u16.to_le_bytes()); // pad
+        let exif = exif; // ~26 B
+                         // Header SAYS 1; the EXIF tag says 6 → 6 wins.
+        let hdr = ContainerHeader {
+            orientation: 1,
+            chunk_count: 2,
+            ..hdr_for(8, 8)
+        };
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Exif, Codec::Raw, &exif),
+            ],
+        );
+        let (h, c) = parse(&buf).unwrap();
+        let (_px, meta) = decode_image(&h, &c).unwrap();
+        assert_eq!(meta.orientation, 6);
+        // No EXIF chunk → the header field (or its default) applies.
+        let hdr2 = ContainerHeader {
+            orientation: 3,
+            chunk_count: 1,
+            ..hdr_for(8, 8)
+        };
+        let buf2 = wrap_with(&hdr2, &[(ChunkType::Pixel, Codec::Raw, &plane)]);
+        let (h2, c2) = parse(&buf2).unwrap();
+        let (_px, meta2) = decode_image(&h2, &c2).unwrap();
+        assert_eq!(meta2.orientation, 3);
+    }
+
+    #[test]
+    fn malformed_metadata_rejects() {
+        let plane = vec![3u8; 8 * 8 * 3];
+        let hdr = ContainerHeader {
+            chunk_count: 2,
+            ..hdr_for(8, 8)
+        };
+        // EXIF without a TIFF byte-order header: reject (it would be
+        // garbage for every consumer).
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Exif, Codec::Raw, b"not-exif"),
+            ],
+        );
+        let (h, c) = parse(&buf).unwrap();
+        assert!(decode_image(&h, &c).is_err());
+        // CICP of the wrong length: reject.
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Cicp, Codec::Raw, &[1, 2, 3]),
+            ],
+        );
+        let (h, c) = parse(&buf).unwrap();
+        assert!(decode_image(&h, &c).is_err());
+        // ORNT out of 1..=8: reject (mirrors the header rule).
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Orientation, Codec::Raw, &[9]),
+            ],
+        );
+        let (h, c) = parse(&buf).unwrap();
+        assert!(decode_image(&h, &c).is_err());
+        // ORNT of zero bytes: reject.
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Orientation, Codec::Raw, &[]),
+            ],
+        );
+        let (h, c) = parse(&buf).unwrap();
+        assert!(decode_image(&h, &c).is_err());
+    }
+
+    #[test]
+    fn malformed_exif_short_payload_rejects() {
+        let plane = vec![3u8; 8 * 8 * 3];
+        let hdr = ContainerHeader {
+            chunk_count: 2,
+            ..hdr_for(8, 8)
+        };
+        let buf = wrap_with(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &plane),
+                (ChunkType::Exif, Codec::Raw, b"II"),
+            ],
+        );
+        let (h, c) = parse(&buf).unwrap();
+        assert!(decode_image(&h, &c).is_err());
     }
 }
