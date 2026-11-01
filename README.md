@@ -55,6 +55,9 @@ Current status: **W5** — the integrated encoder + CLI shipped:
   measured 340 trials, 0 panics, 0 structurally-corrupt accepts (the
   accepted set = pure appends only; all flips/truncations rejected by
   CRC/parser).
-- The registry-consumer + C ABI gates stay the publication-decision
-  items (C ABI opt-in per the freeze; `publish = false` until a
-  consumer run exists).
+- Published to [crates.io](https://crates.io/crates/manifold-frame) as
+  `manifold-frame` 0.1.0 (2026-11-01): the packaged manifest pins
+  `manifold-codec = "1.14"` and the registry-version consumer build
+  passed a fresh-project roundtrip smoke. `CHANGELOG.md` carries the
+  release table. Remaining publication item: the W5-D C ABI (opt-in
+  per the freeze).

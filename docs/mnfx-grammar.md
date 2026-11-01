@@ -25,7 +25,9 @@ normative reference.
 | 0      | 2    | type       | u16 LE; values below; 0x8000 = critical scope    |
 | 2      | 1    | codec      | 0 raw, 4 MNF8 embed, 5 MNF9 embed, 6 zstd        |
 | 3      | 1    | flags      | reserved, must be 0                              |
-| 4      | 4    | raw_len    | decoded length (the decode bound)                |
+| 4      | 4    | raw_len    | decoded length for RAW chunks only; embed and     |
+|        |      |            | zstd chunks declare 0 (the zstd decode bound =    |
+|        |      |            | the plane bound, rules 5 and 9)                   |
 | 8      | 4    | stored_len | wire payload length                              |
 | 12     | 4    | crc32c     | over the STORED bytes, validated BEFORE parse    |
 
@@ -47,7 +49,9 @@ Chunk types: 1 PIXEL, 2 EXIF, 3 XMP, 4 ICC, 5 CICP, 6 ORNT, 7 PIX16-HI,
 4. Raw codec: raw_len == stored_len == payload length (checked).
 5. Zstd codec: the decompression bound enforced at decode; checksum
    mandatory, window_log_max 23, size bound+1 take-limit bomb check
-   (the manifold MNF7/MNF8 hardening, landed W2).
+   (the manifold MNF7/MNF8 hardening, landed W2). Zstd chunks declare
+   raw_len = 0 (v1 shipped shape); the wire-visible decode bound is
+   the plane bound (rule 9), never the raw_len field.
 6. Malformed input = `Error`, never panic.
 7. Plain RGB8 without wrapper semantics stays standalone
    MNF8/MNF9 (the +34-B framing rule: never double a small file).

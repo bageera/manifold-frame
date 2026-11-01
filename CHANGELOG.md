@@ -1,0 +1,41 @@
+# Changelog
+
+All notable changes to `manifold-frame` (the MNFX container). The
+format-grammar normative reference is `docs/mnfx-grammar.md` (W0-frozen;
+wire-visible additions are listed there per milestone).
+
+# 0.1.0 — 2026-11-01
+
+First public release: the MNFX v1 container, W0–W5, published to
+[crates.io](https://crates.io/crates/manifold-frame).
+
+- W0: the versioned container grammar (18-B header, 16-B chunk headers,
+  CRC32C validated before parse, critical/optional chunk scopes,
+  exactly-one pixel accounting per format) + the bounded parser;
+  malformed input = `Error`, never panic.
+- W1: the MNF8/MNF9 embed layer — embedded decode byte-identical to
+  the standalone decode, +34 B framing exact across the 30-file corpus
+  gate (`tests/corpus_embed.rs`).
+- W2: the RGBA8/Gray8/GrayA8 plane vocabulary, stride-derived plane
+  bounds, and the hardened zstd decode (mandatory checksum,
+  window_log_max 23, take-limit bomb check).
+- W3: RGB16/Gray16 hi/lo plane pairs with big-endian interleave (PNG
+  wire order). W3-R1 rate control measured the split vs the
+  interleaved-zstd control (interleaved wins the photo class ~44%;
+  both shapes stay vocabulary, grammar rule 10).
+- W4: the metadata surface — EXIF/XMP/ICC/CICP/ORNT preserved
+  byte-exact with chunk order (duplicate known chunks reject), color
+  precedence ICC > CICP, orientation EXIF tag > header field >
+  default 1, boundary-only validation; the W4-C differential test.
+- W5: the integrated encoder via the `mnfx` CLI (feature `cli`):
+  automatic engine pick (MNF8 profile arm vs MNF9 whole-frame arm at
+  complete-file size), decode/verify commands; the mutation fuzzer
+  (`scripts/fuzz.py`, 340 trials / 0 panics / accepted set = pure
+  appends only).
+- Packaging: the packaged manifest pins `manifold-codec = "1.14"` and
+  the registry-version build passed a fresh-project consumer smoke
+  (serialize/parse/decode_pixels roundtrip, +34 B framing assert).
+
+Wire-consistency note recorded with this release: zstd and embed
+chunks declare raw_len = 0 (shipped shape since W1/W2); the field is
+normative for raw chunks only (grammar rules 3–5, 9).
