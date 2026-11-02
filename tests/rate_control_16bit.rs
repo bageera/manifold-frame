@@ -33,7 +33,7 @@ fn w3r1_split_vs_interleaved_rate_control() {
     let mut interleaved = Vec::with_capacity(n * 2);
     let mut hi = Vec::with_capacity(n);
     let mut lo = Vec::with_capacity(n);
-    for px in img.pixels.chunks_exact(3) {
+    for px in img.pixels.as_chunks::<3>().0 {
         // Pack R,G,B × 257 → spread for a 16-bit gray test per channel;
         // simplest honest fixture: use G only, doubled.
         let v = u16::from(px[1]) * 257;

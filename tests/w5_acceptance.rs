@@ -98,6 +98,7 @@ fn w5_corrupted_container_rejects_not_panics() {
     }
 }
 
+#[allow(dead_code)] // fixture helper kept alongside the corrupt-loop tests
 fn hdr() -> ContainerHeader {
     ContainerHeader {
         pixel_format: PixelFormat::Rgb8,
