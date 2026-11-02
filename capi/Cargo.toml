@@ -1,0 +1,21 @@
+[package]
+name = "manifold-frame-capi"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+description = "C FFI for the MNFX container (manifold-frame): bounded decode + lossless plane rewrite"
+license = "MIT"
+repository = "https://github.com/bageera/manifold-frame"
+readme = "README.md"
+keywords = ["ffi", "c-abi", "image", "mnfx", "codec"]
+categories = ["compression", "multimedia::images", "external-ffi-bindings"]
+publish = false
+
+[lib]
+name = "manifold_frame_capi"
+# "lib" (rlib) lets the crate's own bin + unit tests link it; the C
+# consumers take the staticlib/cdylib artifacts.
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+manifold-frame = { path = "..", version = "0.1.0" }

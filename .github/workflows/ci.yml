@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      # The sibling engine repo is a path dependency (../manifold);
+      # CI can't use it, so the published version is checked out at
+      # the expected sibling path (the W5-C independent-consumer rule
+      # holds BECAUSE the packaged manifest pins the registry version).
+      - name: Vendor the published engine source into ../manifold
+        run: |
+          VERS=$(cargo search manifold-codec --limit 1 | head -1 | sed 's/.*= "\([^"]*\)".*/\1/')
+          echo "vendoring manifold-codec ${VERS}"
+          curl -sL "https://crates.io/api/v1/crates/manifold-codec/${VERS}/download" -o /tmp/mc.crate
+          tar -xzf /tmp/mc.crate -C /tmp
+          rm -rf ../manifold && mv /tmp/manifold-codec-* ../manifold
+      - run: cargo fmt -p manifold-frame -p manifold-frame-capi -- --check
+      - run: cargo clippy -p manifold-frame -p manifold-frame-capi --all-targets -- -D warnings
+      # Unit + capi tests only: the corpus/acceptance/fuzz gates need
+      # the engine repo's image fixtures (a local release gate, not CI —
+      # CI proves the independent-consumer build instead).
+      - run: cargo test -p manifold-frame --lib -p manifold-frame-capi
+      - name: cc smoke gate (real compile + link of the C ABI)
+        run: |
+          cargo build -p manifold-frame-capi --release
+          cargo test -p manifold-frame-capi --release
+      # NOTE: the CLI/fuzz gates need the real ../manifold working tree
+      # (image fixtures); keep them in the local release gate, not CI —
+      # CI proves the independent-consumer build instead.
+
+  i686:
+    # W5-D: image-size arithmetic and usize conversions are sensitive to
+    # platform width; type-check the whole tree for 32-bit.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-unknown-linux-gnu
+      - name: Vendor the published engine source (same as the linux job)
+        run: |
+          mkdir -p ../manifold-src
+          VERS=$(cargo search manifold-codec --limit 1 | head -1 | sed 's/.*= "\([^"]*\)".*/\1/')
+          curl -sL "https://crates.io/api/v1/crates/manifold-codec/${VERS}/download" -o /tmp/mc.crate
+          tar -xzf /tmp/mc.crate -C /tmp && rm -rf ../manifold && mv /tmp/manifold-codec-* ../manifold
+      - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+      - run: cargo check --target i686-unknown-linux-gnu -p manifold-frame -p manifold-frame-capi

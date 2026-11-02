@@ -22,8 +22,14 @@ zstd = "0.13"
 default = []
 # The CLI (encode/decode/verify) needs the engines' image-io surface.
 cli = ["manifold-codec/image-io"]
+# W5-D: marker for the C-ABI surface in the capi/ workspace member.
+capi = []
 
 [[bin]]
 name = "mnfx"
 path = "src/main.rs"
 required-features = ["cli"]
+
+# W5-D: the C ABI is a workspace member (gate: capi/tests/c-smoke).
+[workspace]
+members = ["capi"]

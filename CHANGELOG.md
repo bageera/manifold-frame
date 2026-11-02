@@ -4,6 +4,27 @@ All notable changes to `manifold-frame` (the MNFX container). The
 format-grammar normative reference is `docs/mnfx-grammar.md` (W0-frozen;
 wire-visible additions are listed there per milestone).
 
+# Unreleased
+
+- W5-D: the C ABI (`capi/`): `mnfx_decode` (any MNFX container → the
+  full sample plane; size-query idiom; pixel_format/orientation
+  outputs optional) and `mnfx_rewrite_chunk` (replace one chunk's
+  payload preserving every other byte; CRC32C recomputed in-crate) —
+  status-code contract mirroring `manifold-codec-capi`, never panics
+  on caller data, no exported allocator (memory ownership stays
+  caller-side). Gates: the cc smoke (real compile + link of a C
+  program against the staticlib + header, in-process via the test
+  binary) and the ABI mutation fuzzer `scripts/abi_fuzz.py` (measured
+  180 trials / 0 crashes / accepted set = pure appends only — the
+  audit rule holds across the ABI). CI: the matrix gains the i686
+  32-bit type-check (usize-width-sensitive arithmetic) and the
+  independent-consumer build against the vendored published engine
+  source. The capi crate stays `publish = false` until its dependency
+  bump decides otherwise.
+- Lib surface for the ABI: `ChunkType::raw()` is public
+  (re-serialization needs the wire u16), `Error` and `Chunk` are
+  re-exported at the crate root. No behavior change.
+
 # 0.1.0 — 2026-11-01
 
 First public release: the MNFX v1 container, W0–W5, published to

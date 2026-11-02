@@ -167,7 +167,8 @@ impl ChunkType {
         }
     }
 
-    fn raw(self) -> u16 {
+    /// The wire u16 (W5-D: public for the C-ABI re-serializer).
+    pub fn raw(self) -> u16 {
         match self {
             ChunkType::Pixel => 1,
             ChunkType::Exif => 2,
@@ -236,4 +237,5 @@ pub fn crc32c(data: &[u8]) -> u32 {
     !crc
 }
 pub use crate::decode::{decode_image, decode_pixels, Metadata};
-pub use crate::parser::{parse, serialize};
+pub use crate::error::Error;
+pub use crate::parser::{parse, serialize, Chunk};

@@ -1,2 +1,3 @@
 /target
 Cargo.lock
+capi/tests/c-smoke/crates/*/target/
