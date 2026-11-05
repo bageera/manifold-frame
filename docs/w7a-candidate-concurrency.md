@@ -52,8 +52,19 @@ across legs (same binary per image). Full record + environment in
 
 ## Disposition
 
-- W7-A closes measurement-only: hypothesis dead, structure measured.
-- Next: W7-B (allocation/scratch-buffer lifetimes — with the lever
-  identified as zstd-19's per-arm tables and the mix arm's 37 MB as
-  the low-memory template) or the engine-side bounded-memory profile
-  decision. No codec or frame changes made by this gate.
+- **W7-A closed `REJECTED: concurrency as RSS cause`** — negative
+  hypothesis accepted; measurements are the final disposition.
+- Accounting footnote (preserved per the closure memo): Balanced
+  exceeds standalone zstd-19 by 2,768 KiB on photograph but 13,904
+  KiB on high_entropy — the profile's peak is not universally "zstd
+  + 3 MB"; the residual is not isolated by these process-RSS
+  measurements (candidates: other arms, retained allocations,
+  additional working state).
+- Wire contract: unchanged. W6-D baseline frozen. Balanced stays the
+  default. Further memory tuning is engine-repo research (W7-B1
+  zstd-19 attribution via `ZSTD_sizeof_CCtx()`; W7-B2 parameter
+  tradeoffs; W7-B3 bounded-memory profile) — B2/B3 are engine
+  decisions; any selection/parameter change that alters bytes needs a
+  backend/profile id per the manifold rule. Note: a new profile that
+  only re-selects among existing valid bitstreams may not need a new
+  wire identifier — the engine's versioning rules govern that.
