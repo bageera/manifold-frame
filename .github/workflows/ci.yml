@@ -34,6 +34,9 @@ jobs:
       # the engine repo's image fixtures (a local release gate, not CI —
       # CI proves the independent-consumer build instead).
       - run: cargo test -p manifold-frame --lib -p manifold-frame-capi
+      # W6-E: the conformance gate needs only the published engine (no
+      # testdata) — runs everywhere, all six formats sample-exact.
+      - run: cargo test -p manifold-frame --test w6e_conformance
       - name: cc smoke gate (real compile + link of the C ABI)
         run: |
           cargo build -p manifold-frame-capi --release

@@ -6,6 +6,24 @@ wire-visible additions are listed there per milestone).
 
 # Unreleased
 
+- W6 — Interoperability. W6-A: an out-of-tree consumer repo
+  (`/tmp/mnfx-adapter`) builds from the published crates.io crates
+  alone (PNG→MNFX→PNG by pixel-plane equality; the adapter lesson:
+  the engines embed RGB8 planes only — RGBA/16-bit containers ride
+  raw/zstd paths). W6-B: the libvips loader through the shipped C ABI
+  (in-pipeline pixel equality via subtract+abs, thumbnail op, hostile
+  leg rc==1). W6-C: the MagickCore importer (import→export→memcmp ==
+  the wire plane for rgba8/gray16/rgb16; 16-bit = explicit BE→LE
+  swap in both directions; hostile leg rc==1). W6-D: the
+  measurement-only baseline (`scripts/w6d_bench.py` →
+  `docs/w6d-results.json` + `docs/w6d-performance.md`: D1 bytes +
+  encode/decode medians + peak RSS per class; D2 in-memory C-ABI
+  decode legs 1.0–3.4 ms). W6-E: the durable in-repo forms —
+  `tests/w6e_conformance.rs` (all six formats sample-exact, incl.
+  raw/zstd/embed RGB8 arms; CI-scope) + `integrations/` (the c-abi /
+  vips / magick bridges with self-contained run gates) +
+  `scripts/consume_release.sh` (fresh third-project build + run of
+  the published crate).
 - W5-D: the C ABI (`capi/`): `mnfx_decode` (any MNFX container → the
   full sample plane; size-query idiom; pixel_format/orientation
   outputs optional) and `mnfx_rewrite_chunk` (replace one chunk's
