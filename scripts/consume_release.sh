@@ -9,10 +9,11 @@ export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.rustup/toolchains/stable-aarch6
 export RUSTUP_HOME="$HOME/.rustup"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 T=$(mktemp -d /tmp/mnfx-release-check.XXXXXX)
+VER="${1:-0.1.1}"
 cd "$T"
 cargo new consumer --bin -q
 cd consumer
-cargo add -q manifold-frame@"0.1.0" 2>/dev/null
+cargo add -q manifold-frame@"$VER" 2>/dev/null
 # 1) lib usage of the published crate: synthetic 4x2 RGB8 roundtrip.
 cat > src/main.rs <<'RS'
 use manifold_frame::{ChunkType, Codec, ContainerHeader, PixelFormat};
@@ -52,7 +53,7 @@ png = (b"\x89PNG\r\n\x1a\n"
 open("in.png", "wb").write(png)
 PY
 M="$T/prefix/bin/mnfx"
-cargo install -q manifold-frame@"0.1.0" --features cli --root "$T/prefix" --locked
+cargo install -q manifold-frame@"$VER" --features cli --root "$T/prefix" --locked
 "$M" encode in.png -o out.mnfx
 "$M" decode out.mnfx -o restored.png
 "$M" verify in.png out.mnfx
