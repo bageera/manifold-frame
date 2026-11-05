@@ -9,55 +9,62 @@ modifying the engines: an MNF8/MNF9 payload embedded under MNFX decodes
 byte-identically to its standalone decode. Design per ADR-009 and its
 review in the manifold repo (`docs/adr-009-mnfx-review.md`).
 
-Current status: **W4** — W1–W3 shipped (the embed layer with codec-
-field dispatch + magic-agreement; the RGBA8/Gray8/GrayA8 plane
-vocabulary with stride-derived bounds and the hardened zstd decode;
-the RGB16/Gray16 hi/lo plane pair with big-endian interleave), plus
-the W4 metadata surface:
+## Status: W6 complete (interoperability), W7-A closed
 
-- W4-A preservation: EXIF/XMP/ICC/CICP/ORNT payloads roundtrip
-  byte-exact with chunk ORDER preserved; duplicates of known metadata
-  chunks reject (grammar rule 11); unknown optional chunks skip.
-- W4-B semantics: color precedence ICC > CICP; orientation = EXIF
-  tag 0x0112 > header field > default 1 (rule 12); samples are never
-  rotated at decode. Boundary validation only (EXIF TIFF shell,
-  CICP = 4 B, ORNT = 1 B in 1..=8) — the container preserves bytes
-  and leaves full EXIF/ICC/XMP structure to consumers.
-- W4-C differential (`tests/meta_differential.rs`): a real MNF8
-  engine file + 4 metadata chunks decodes pixel-exact vs standalone vs
-  source, metadata byte-exact, rewrite lossless.
-- W3-R1 rate control (`tests/rate_control_16bit.rs`): the hi/lo split
-  MEASURED vs the interleaved-zstd control at complete-wire size
-  (photo fixture: 47,990 B vs 27,021 B — interleaved wins ~44%; the
-  split stays vocabulary, per grammar rule 10's note).
-- serialize hardening: u32 length fields reject overflow instead of
-  silently wrapping. 37 unit tests green.
+Verification board:
 
-Corpus gate (`tests/corpus_embed.rs`): all 30 corpus files — embedded
-decode == standalone decode == source pixels, framing exactly +34 B per
-file, measured table in the test log.
+| Gate | Evidence |
+| --- | --- |
+| Container conformance (v1) | `tests/w6e_conformance.rs`: all six pixel formats (RGB8, RGBA8, Gray8, GrayA8, RGB16, Gray16) sample-exact through `serialize → parse → decode_pixels`, incl. raw/zstd/embed RGB8 arms; CI-runnable, no testdata |
+| CLI + acceptance | `mnfx encode` (engine pick: MNF8/MNF9 race, smallest file ships), `decode`, `verify`; `tests/w5_acceptance.rs` + corruption/fuzz (`scripts/fuzz.py`: 340 trials/0 panics) |
+| Corpus | `tests/corpus_embed.rs`: 30/30 files, embedded == standalone == source, +34 B framing exact |
+| C ABI | `capi/` (`mnfx_decode`, `mnfx_rewrite_chunk`), status-code contract, ABI fuzz 180/0, `integrations/c-abi/run.sh` |
+| libvips adapter | `integrations/vips/run.sh`: in-pipeline pixel equality, thumbnail, hostile leg controlled |
+| ImageMagick adapter | `integrations/magick/run.sh`: rgba8/gray16/rgb16 import→export→memcmp == wire plane, thumbnail + PIL cross-check, hostile leg controlled |
+| Release verification | `scripts/consume_release.sh`: fresh third-project build/run of the **published** crate (registry-only deps); result in `docs/w6e-verification.md` |
+| Performance baseline | W6-D measurement-only: `scripts/w6d_bench.py` → `docs/w6d-results.json` + `docs/w6d-performance.md` (bytes, encode/decode medians, peak RSS, per class + profile) |
 
-Current status: **W5** — the integrated encoder + CLI shipped:
+W6-D highlights: balanced beats PNG-9 on every structured class
+(0.15–0.34) and ties noise; decode 4–8 ms CLI / 1.0–3.4 ms in-memory;
+encode RSS ≈ one zstd-19 arm's working set (~86 MB; mix6 arm 37 MB) —
+W7-A `REJECTED: concurrency as RSS cause`, details in
+`docs/w7a-candidate-concurrency.md`.
 
-- `mnfx` CLI (`src/main.rs`, feature `cli` = the engines' image-io):
-  `encode <png> -o <mnfx>` runs the automatic engine pick (MNF8 at the
-  chosen profile competes with the MNF9 whole-frame arm at complete
-  file size — the manifold CLI's flow); `decode <mnfx> -o <png>`
-  restores the image; `verify <image> <mnfx>` prints PASS/FAIL
-  (exit 0/1). Real-pipeline smoke: document 200×280 = 586 B (+34
-  framing), PNG-plane byte-identical after decode.
-- W5 acceptance test (`tests/w5_acceptance.rs`): real PNG → MNFX
-  (engine pick + ICC chunk) → decode returns pixel-exact bytes + the
-  preserved ICC; corrupted containers (byte flips at header/payload/
-  CRC positions, truncations) reject or decode — never panic.
-- Fuzz (`scripts/fuzz.py`, the manifold shape): encode every corpus
-  image, mutate (flips/truncations/appends), decode must not panic —
-  measured 340 trials, 0 panics, 0 structurally-corrupt accepts (the
-  accepted set = pure appends only; all flips/truncations rejected by
-  CRC/parser).
-- Published to [crates.io](https://crates.io/crates/manifold-frame) as
-  `manifold-frame` 0.1.0 (2026-11-01): the packaged manifest pins
-  `manifold-codec = "1.14"` and the registry-version consumer build
-  passed a fresh-project roundtrip smoke. `CHANGELOG.md` carries the
-  release table. Remaining publication item: the W5-D C ABI (opt-in
-  per the freeze).
+## Use
+
+Rust (container-only crate; the engines come from `manifold-codec`):
+
+```rust
+let (chunk, stats, backend) = manifold_codec::mnf8::encode_mnf8(
+    &pixels, dims, false,
+    manifold_codec::mnf8::Profile::Balanced,
+);
+let buf = manifold_frame::serialize(
+    &header,
+    &[(ChunkType::Pixel, Codec::MnF8, &chunk)],
+)?;
+// ... parse/decode with manifold_frame::parse + decode_pixels
+```
+
+CLI (feature `cli`): `mnfx <encode|decode|verify>` — encode a PNG into
+an MNF8/MNF9-based MNFX file, decode back (RGB8 via the engines),
+verify exact reconstruction. `--mnf8=balanced|maximum` picks the
+search profile.
+
+C: `capi/` ships the ABI crate (`manifold-frame-capi`, in-repo; the
+shipped dylib + `capi/include/mnfx.h` are the integration contract —
+see `integrations/README.md` for the adapter set and their known
+limitations).
+
+Metadata: EXIF/XMP/ICC/CICP/OpenEXR orientation preserved
+byte-exact with chunk order; duplicates of known metadata chunks
+reject; color precedence ICC > CICP; orientation = EXIF 0x0112 >
+header field > 1; samples never rotated at decode.
+
+## Versioning
+
+The wire grammar is frozen for v1; the container publishes under the
+`0.1.x` line while the interoperability story hardens. `CHANGELOG.md`
+carries the per-gate history. Engine work (including any memory-tuned
+profile) stays in `manifold-codec`; the frame depends on it by
+semver-compatible version pin, currently `1.14`.

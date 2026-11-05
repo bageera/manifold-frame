@@ -4,6 +4,14 @@ All notable changes to `manifold-frame` (the MNFX container). The
 format-grammar normative reference is `docs/mnfx-grammar.md` (W0-frozen;
 wire-visible additions are listed there per milestone).
 
+# [0.1.1] — 2026-11-05
+
+Published as `manifold-frame` 0.1.1 — no wire-API changes behind the
+0.1.0 baseline; the release bundles the W6 interoperability evidence
+(conformance tests, in-repo integration gates, third-project release
+verification) and the W7-A negative result, plus the refreshed
+README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
+
 # Unreleased
 
 - W7-A (measurement-only): the encoder candidate evaluation is

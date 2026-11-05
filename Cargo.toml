@@ -1,6 +1,6 @@
 [package]
 name = "manifold-frame"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.91"
 description = "MNFX: a versioned lossless image container wrapping Manifold compression streams (alpha, 16-bit, metadata, orientation)"
