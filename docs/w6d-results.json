@@ -1,0 +1,436 @@
+{
+ "env": {
+  "date_utc": "2026-11-05T13:17:11Z",
+  "uname": "Darwin 25.6.0 arm64",
+  "kernel_banner": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:48 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6020",
+  "cpu": "Apple M2 Pro",
+  "mem_bytes": "17179869184",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) | binary: rustc | commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67 | commit-date: 2026-10-13 | host: aarch64-apple-darwin | release: 1.99.1 | LLVM version: 23.1.1 | ",
+  "release_profile": "Cargo defaults (opt-level 3; no [profile.release] override)",
+  "manifold_frame_rev": "30d02c480b71fd748661397fb39ed7833a770458",
+  "manifold_codec_pin": "manifold-codec = { path = \"../manifold\", version = \"1.14\" }",
+  "adapter_rev": "df303483bea7f385b057b61a49e5981330fc78e6",
+  "magick": "Version: ImageMagick 7.1.2-35 Q16-HDRI aarch64 acaf7e418:20261031 https://imagemagick.org",
+  "cwebp_version": "1.6.0",
+  "pil": "12.2.0",
+  "timing_method": "fresh-python wrapper per run (perf_counter), RUSAGE_CHILDREN ru_maxrss (bytes/1024); warm filesystem cache after run 0",
+  "commands": {
+   "mnfx_encode": "mnfx encode <src.png> -o <out.mnfx> --mnf8=balanced|maximum",
+   "mnfx_decode": "mnfx decode <in.mnfx> -o <out.png>",
+   "png": "magick <src> -define png:compression-level=6|9 PNG24:<out>",
+   "webp": "cwebp -lossless -exact -z 6|9 <src> -o <out.webp>",
+   "webp_decode": "dwebp <in.webp> -o <out.png>",
+   "abidec": "cc abidec.c -lmanifold_frame_capi; abidec <container> <plane> 5"
+  }
+ },
+ "d1": {
+  "photograph": {
+   "source": "autumn_192x144_s900001.png",
+   "sha256": "a2eca23528efd0418974f89301697fd4fd5cf515977cea80de6596ed2846f339",
+   "configs": {
+    "mnfx_balanced": {
+     "status": "ok",
+     "bytes": 20182,
+     "reconstruction": "exact",
+     "encode_median_s": 5.208,
+     "rss_median_kb": 88624,
+     "warmup_s": 5.248,
+     "runs": 4,
+     "decode_median_s": 0.004,
+     "decode_rss_median_kb": 2912
+    },
+    "mnfx_maximum": {
+     "status": "ok",
+     "bytes": 18818,
+     "reconstruction": "exact",
+     "encode_median_s": 31.807,
+     "rss_median_kb": 88496,
+     "warmup_s": 30.739,
+     "runs": 4,
+     "decode_median_s": 0.08,
+     "decode_rss_median_kb": 2688
+    },
+    "png6": {
+     "status": "ok",
+     "bytes": 25963,
+     "reconstruction": "exact",
+     "encode_median_s": 0.021,
+     "rss_median_kb": 5664,
+     "warmup_s": 0.021,
+     "runs": 4,
+     "decode_median_s": 0.026,
+     "decode_rss_median_kb": 5616
+    },
+    "png9": {
+     "status": "ok",
+     "bytes": 25452,
+     "reconstruction": "exact",
+     "encode_median_s": 0.065,
+     "rss_median_kb": 5680,
+     "warmup_s": 0.066,
+     "runs": 4,
+     "decode_median_s": 0.026,
+     "decode_rss_median_kb": 5616
+    },
+    "webp6": {
+     "status": "ok",
+     "bytes": 19646,
+     "reconstruction": "exact",
+     "encode_median_s": 0.033,
+     "rss_median_kb": 7088,
+     "warmup_s": 0.032,
+     "runs": 4,
+     "decode_median_s": 0.017,
+     "decode_rss_median_kb": 2432
+    },
+    "webp9": {
+     "status": "ok",
+     "bytes": 19878,
+     "reconstruction": "exact",
+     "encode_median_s": 2.472,
+     "rss_median_kb": 35504,
+     "warmup_s": 2.735,
+     "runs": 4,
+     "decode_median_s": 0.017,
+     "decode_rss_median_kb": 2480
+    }
+   }
+  },
+  "screenshot": {
+   "source": "screenshot_640x400.png",
+   "sha256": "c53d50952ad3f9e61e4d9c52b7fe870dfe2e96ad286a23099462c7ad7f4abe24",
+   "configs": {
+    "mnfx_balanced": {
+     "status": "ok",
+     "bytes": 701,
+     "reconstruction": "exact",
+     "encode_median_s": 20.275,
+     "rss_median_kb": 95008,
+     "warmup_s": 20.787,
+     "runs": 4,
+     "decode_median_s": 0.005,
+     "decode_rss_median_kb": 3648
+    },
+    "mnfx_maximum": {
+     "status": "unmeasured",
+     "note": "expensive configuration outside the W6-D1 pilot scope"
+    },
+    "png6": {
+     "status": "ok",
+     "bytes": 2332,
+     "reconstruction": "exact",
+     "encode_median_s": 0.018,
+     "rss_median_kb": 7920,
+     "warmup_s": 0.018,
+     "runs": 4,
+     "decode_median_s": 0.016,
+     "decode_rss_median_kb": 15984
+    },
+    "png9": {
+     "status": "ok",
+     "bytes": 2035,
+     "reconstruction": "exact",
+     "encode_median_s": 0.019,
+     "rss_median_kb": 7952,
+     "warmup_s": 0.019,
+     "runs": 4,
+     "decode_median_s": 0.017,
+     "decode_rss_median_kb": 15984
+    },
+    "webp6": {
+     "status": "ok",
+     "bytes": 320,
+     "reconstruction": "exact",
+     "encode_median_s": 0.011,
+     "rss_median_kb": 7088,
+     "warmup_s": 0.011,
+     "runs": 4,
+     "decode_median_s": 0.01,
+     "decode_rss_median_kb": 3360
+    },
+    "webp9": {
+     "status": "ok",
+     "bytes": 320,
+     "reconstruction": "exact",
+     "encode_median_s": 1.45,
+     "rss_median_kb": 40944,
+     "warmup_s": 1.41,
+     "runs": 4,
+     "decode_median_s": 0.01,
+     "decode_rss_median_kb": 3344
+    }
+   }
+  },
+  "gradient": {
+   "source": "gradient_320x240.png",
+   "sha256": "d64093f4cad10c9d93e9054d9ec6f9cfd23a3346b533ee3580554faebf3c7006",
+   "configs": {
+    "mnfx_balanced": {
+     "status": "ok",
+     "bytes": 288,
+     "reconstruction": "exact",
+     "encode_median_s": 9.843,
+     "rss_median_kb": 89424,
+     "warmup_s": 11.387,
+     "runs": 4,
+     "decode_median_s": 0.005,
+     "decode_rss_median_kb": 3280
+    },
+    "mnfx_maximum": {
+     "status": "ok",
+     "bytes": 288,
+     "reconstruction": "exact",
+     "encode_median_s": 69.029,
+     "rss_median_kb": 89760,
+     "warmup_s": 68.312,
+     "runs": 4,
+     "decode_median_s": 0.007,
+     "decode_rss_median_kb": 3312
+    },
+    "png6": {
+     "status": "ok",
+     "bytes": 2292,
+     "reconstruction": "exact",
+     "encode_median_s": 0.013,
+     "rss_median_kb": 6736,
+     "warmup_s": 0.012,
+     "runs": 4,
+     "decode_median_s": 0.012,
+     "decode_rss_median_kb": 6704
+    },
+    "png9": {
+     "status": "ok",
+     "bytes": 1884,
+     "reconstruction": "exact",
+     "encode_median_s": 0.017,
+     "rss_median_kb": 6720,
+     "warmup_s": 0.015,
+     "runs": 4,
+     "decode_median_s": 0.011,
+     "decode_rss_median_kb": 6704
+    },
+    "webp6": {
+     "status": "ok",
+     "bytes": 148,
+     "reconstruction": "exact",
+     "encode_median_s": 0.067,
+     "rss_median_kb": 15472,
+     "warmup_s": 0.068,
+     "runs": 4,
+     "decode_median_s": 0.01,
+     "decode_rss_median_kb": 2624
+    },
+    "webp9": {
+     "status": "ok",
+     "bytes": 148,
+     "reconstruction": "exact",
+     "encode_median_s": 1.417,
+     "rss_median_kb": 19792,
+     "warmup_s": 1.419,
+     "runs": 4,
+     "decode_median_s": 0.007,
+     "decode_rss_median_kb": 2624
+    }
+   }
+  },
+  "repeat_pattern": {
+   "source": "repeat_256x256.png",
+   "sha256": "cf4035ad566de0d5582e0c01b0e0b751c975c6f2b3a2823b4c29550a0ef7116b",
+   "configs": {
+    "mnfx_balanced": {
+     "status": "ok",
+     "bytes": 335,
+     "reconstruction": "exact",
+     "encode_median_s": 7.993,
+     "rss_median_kb": 88704,
+     "warmup_s": 8.11,
+     "runs": 4,
+     "decode_median_s": 0.004,
+     "decode_rss_median_kb": 3152
+    },
+    "mnfx_maximum": {
+     "status": "unmeasured",
+     "note": "expensive configuration outside the W6-D1 pilot scope"
+    },
+    "png6": {
+     "status": "ok",
+     "bytes": 3630,
+     "reconstruction": "exact",
+     "encode_median_s": 0.011,
+     "rss_median_kb": 6432,
+     "warmup_s": 0.012,
+     "runs": 4,
+     "decode_median_s": 0.011,
+     "decode_rss_median_kb": 6416
+    },
+    "png9": {
+     "status": "ok",
+     "bytes": 1785,
+     "reconstruction": "exact",
+     "encode_median_s": 0.012,
+     "rss_median_kb": 6496,
+     "warmup_s": 0.012,
+     "runs": 4,
+     "decode_median_s": 0.012,
+     "decode_rss_median_kb": 6448
+    },
+    "webp6": {
+     "status": "ok",
+     "bytes": 358,
+     "reconstruction": "exact",
+     "encode_median_s": 0.058,
+     "rss_median_kb": 13520,
+     "warmup_s": 0.058,
+     "runs": 4,
+     "decode_median_s": 0.007,
+     "decode_rss_median_kb": 2528
+    },
+    "webp9": {
+     "status": "ok",
+     "bytes": 358,
+     "reconstruction": "exact",
+     "encode_median_s": 0.276,
+     "rss_median_kb": 15408,
+     "warmup_s": 0.277,
+     "runs": 4,
+     "decode_median_s": 0.006,
+     "decode_rss_median_kb": 2528
+    }
+   }
+  },
+  "high_entropy": {
+   "source": "noise_256x256.png",
+   "sha256": "97e6f1912dead66c0034a61005e033aafdb0dec2239b2590eafbd568b140a5ff",
+   "configs": {
+    "mnfx_balanced": {
+     "status": "ok",
+     "bytes": 196946,
+     "reconstruction": "exact",
+     "encode_median_s": 7.563,
+     "rss_median_kb": 99376,
+     "warmup_s": 7.159,
+     "runs": 4,
+     "decode_median_s": 0.004,
+     "decode_rss_median_kb": 3920
+    },
+    "mnfx_maximum": {
+     "status": "unmeasured",
+     "note": "expensive configuration outside the W6-D1 pilot scope"
+    },
+    "png6": {
+     "status": "ok",
+     "bytes": 197419,
+     "reconstruction": "exact",
+     "encode_median_s": 0.014,
+     "rss_median_kb": 6592,
+     "warmup_s": 0.014,
+     "runs": 4,
+     "decode_median_s": 0.014,
+     "decode_rss_median_kb": 6544
+    },
+    "png9": {
+     "status": "ok",
+     "bytes": 197419,
+     "reconstruction": "exact",
+     "encode_median_s": 0.015,
+     "rss_median_kb": 6608,
+     "warmup_s": 0.014,
+     "runs": 4,
+     "decode_median_s": 0.016,
+     "decode_rss_median_kb": 6544
+    },
+    "webp6": {
+     "status": "ok",
+     "bytes": 196688,
+     "reconstruction": "exact",
+     "encode_median_s": 0.023,
+     "rss_median_kb": 14480,
+     "warmup_s": 0.025,
+     "runs": 4,
+     "decode_median_s": 0.011,
+     "decode_rss_median_kb": 2736
+    },
+    "webp9": {
+     "status": "ok",
+     "bytes": 196688,
+     "reconstruction": "exact",
+     "encode_median_s": 3.232,
+     "rss_median_kb": 26816,
+     "warmup_s": 3.109,
+     "runs": 4,
+     "decode_median_s": 0.011,
+     "decode_rss_median_kb": 3024
+    }
+   }
+  }
+ },
+ "d2": {
+  "source_png8": "forest_224x160_s900002.png",
+  "sha256_png8": "f68ddd6ddf4db359dacc433f9f15cf1ec39608fc3613bd3b0cc50572961219d0",
+  "derived": "rgba8 native; gray16/rgb16 samples = channel x 257 (BE u16)",
+  "formats": {
+   "rgba8": {
+    "bytes": 77225,
+    "plane_bytes": 143360,
+    "abidec_in_memory": {
+     "ok": true,
+     "w": 224,
+     "h": 160,
+     "pixfmt": 2,
+     "median_us": 2697.0,
+     "min_us": 2622.0,
+     "rss_kb": 2848
+    },
+    "decode_verify": "exact",
+    "decode_e2e_median_s": 0.085,
+    "decode_e2e_rss_kb": 3888,
+    "decode_reconstruction": "exact"
+   },
+   "gray16": {
+    "bytes": 47990,
+    "plane_bytes": 71680,
+    "abidec_in_memory": {
+     "ok": true,
+     "w": 224,
+     "h": 160,
+     "pixfmt": 6,
+     "median_us": 1004.0,
+     "min_us": 993.0,
+     "rss_kb": 2800
+    },
+    "decode_verify": "exact"
+   },
+   "rgb16": {
+    "bytes": 145854,
+    "plane_bytes": 215040,
+    "abidec_in_memory": {
+     "ok": true,
+     "w": 224,
+     "h": 160,
+     "pixfmt": 5,
+     "median_us": 3383.0,
+     "min_us": 3199.0,
+     "rss_kb": 3904
+    },
+    "decode_verify": "exact"
+   }
+  },
+  "baselines": {
+   "png48_rgb16_baseline": {
+    "bytes": 63155,
+    "note": "lossless-16 rep by construction; exactness proven MNFX-side via abidec"
+   },
+   "png48_gray16_baseline": {
+    "bytes": 62002,
+    "note": "colorspace-converted gray; informational only"
+   },
+   "webp9_rgba_lossless": {
+    "bytes": 37970
+   }
+  },
+  "unmeasured": "gray16/rgb16 end-to-end consumer decode: no adapter PNG-16 writer yet; in-memory tiers above are the measured decode numbers"
+ },
+ "unmeasured_classes": {
+  "document": "no document-class fixture in the engine corpus"
+ }
+}
