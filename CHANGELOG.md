@@ -6,6 +6,18 @@ wire-visible additions are listed there per milestone).
 
 # Unreleased
 
+- W7-A (measurement-only): the encoder candidate evaluation is
+  already sequential (no rayon/threads in the engine encode path;
+  the lattice = a plain loop: balanced 32 arms, maximum 160). The
+  88-99 MB encode RSS is NOT candidate concurrency: the full balanced
+  lattice's peak sits at one zstd-19 arm's working set (~86 MB,
+  near-size-independent at the measured sizes; the mix6 arm costs
+  only ~37 MB) — buffers are per-arm transient, no accumulation.
+  Lever identified: the per-arm zstd-19 encode tables; a mix-only
+  balanced profile is byte-changing ⇒ NEW backend/profile id
+  (engine-side decision, queued). Probes: tests/w7a_probe.rs +
+  scripts/w7a_bench.py → docs/w7a-results.json +
+  docs/w7a-candidate-concurrency.md. Wire untouched.
 - W6 — Interoperability. W6-A: an out-of-tree consumer repo
   (`/tmp/mnfx-adapter`) builds from the published crates.io crates
   alone (PNG→MNFX→PNG by pixel-plane equality; the adapter lesson:

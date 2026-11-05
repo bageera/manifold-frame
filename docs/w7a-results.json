@@ -1,0 +1,129 @@
+{
+ "env": {
+  "date_utc": "2026-11-05T15:18:02Z",
+  "uname": "Darwin 25.6.0 arm64",
+  "cpu": "Apple M2 Pro",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "engine_tree": "586370e docs: v1.15.0 publish verification recorded (registry read-back + consumer smoke + post-packaging suite)",
+  "frame_rev": "5afa10e77efe",
+  "method": "one leg per cargo-test process (release); fresh-python wrapper per run: perf_counter + RUSAGE_CHILDREN.ru_maxrss (KB); 1 warmup + 3 timed medians; constant test-binary overhead cancels across legs (same binary per image)"
+ },
+ "images": {
+  "photograph": {
+   "l1_zstd19_direct": {
+    "median_s": 0.062,
+    "rss_median_kb": 85744,
+    "warmup_s": 0.443,
+    "outputs": [],
+    "identity": {
+     "files": [
+      "photograph_l1_zstd19.zst"
+     ],
+     "identical": true,
+     "sha256": "8d3a3a61b074"
+    }
+   },
+   "l2_mix6": {
+    "median_s": 0.128,
+    "rss_median_kb": 37040,
+    "warmup_s": 0.127,
+    "outputs": [],
+    "identity": {
+     "files": [
+      "photograph_l2_mix6.bin"
+     ],
+     "identical": true,
+     "sha256": "75027a0128de"
+    }
+   },
+   "l3_full_balanced": {
+    "median_s": 5.143,
+    "rss_median_kb": 88512,
+    "warmup_s": 5.11,
+    "outputs": [
+     "photograph_l3_balanced.mnfx"
+    ],
+    "identity": {
+     "files": [
+      "photograph_l3_balanced.mnfx"
+     ],
+     "identical": true,
+     "sha256": "af558a119423"
+    }
+   },
+   "l4_full_maximum": {
+    "median_s": 30.983,
+    "rss_median_kb": 89008,
+    "warmup_s": 31.137,
+    "outputs": [
+     "photograph_l4_maximum.mnfx"
+    ],
+    "identity": {
+     "files": [
+      "photograph_l4_maximum.mnfx"
+     ],
+     "identical": true,
+     "sha256": "6272b8b69608"
+    }
+   }
+  },
+  "high_entropy": {
+   "l1_zstd19_direct": {
+    "median_s": 0.063,
+    "rss_median_kb": 86064,
+    "warmup_s": 0.109,
+    "outputs": [],
+    "identity": {
+     "files": [
+      "high_entropy_l1_zstd19.zst"
+     ],
+     "identical": true,
+     "sha256": "5ebdf3e0c452"
+    }
+   },
+   "l2_mix6": {
+    "median_s": 0.411,
+    "rss_median_kb": 37104,
+    "warmup_s": 0.54,
+    "outputs": [],
+    "identity": {
+     "files": [
+      "high_entropy_l2_mix6.bin"
+     ],
+     "identical": true,
+     "sha256": "ca188e41223b"
+    }
+   },
+   "l3_full_balanced": {
+    "median_s": 7.222,
+    "rss_median_kb": 99968,
+    "warmup_s": 7.415,
+    "outputs": [
+     "high_entropy_l3_balanced.mnfx"
+    ],
+    "identity": {
+     "files": [
+      "high_entropy_l3_balanced.mnfx"
+     ],
+     "identical": true,
+     "sha256": "84169e273076"
+    }
+   },
+   "l4_full_maximum": {
+    "median_s": 61.822,
+    "rss_median_kb": 99808,
+    "warmup_s": 61.897,
+    "outputs": [
+     "high_entropy_l4_maximum.mnfx"
+    ],
+    "identity": {
+     "files": [
+      "high_entropy_l4_maximum.mnfx"
+     ],
+     "identical": true,
+     "sha256": "84169e273076"
+    }
+   }
+  }
+ }
+}
