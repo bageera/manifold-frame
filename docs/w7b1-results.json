@@ -1,0 +1,351 @@
+{
+ "env": {
+  "date_utc": "2026-11-13T14:44:25Z",
+  "uname": "Darwin 25.6.0 arm64",
+  "cpu": "Apple M2 Pro",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "engine_tree": "586370e docs: v1.15.0 publish verification recorded (registry read-back + consumer smoke + post-packaging suite)",
+  "frame_rev": "1853418c11fa",
+  "zstd_crate": "zstd 0.13.3 / zstd-safe 7.3.0 (zstd-sys 2.1.2+zstd.1.5.7, Cargo.lock)",
+  "method": "one cargo-test process per leg (release, --features cli); fresh-python wrapper per run: perf_counter + RUSAGE_CHILDREN.ru_maxrss (KB, bytes/1024); 1 warmup + 3 timed medians; constant test-binary overhead cancels across legs; per-leg analytic ZSTD_sizeof_CCtx() printed by the same CCtx the stream uses (no second context, RSS column stays clean); legs a-c synthesize the plane (no engine code), leg d = engine img::load + zstd-19 anchor on the current tree (drift check, not identity oracle)"
+ },
+ "legs": {
+  "a_null_base": {
+   "median_s": 0.046,
+   "rss_median_kb": 37056,
+   "rss_all_kb": [
+    37056,
+    37344,
+    37056
+   ],
+   "warmup_s": 0.256,
+   "bytes": null,
+   "identity": {
+    "identical": true,
+    "sha256": "74234e98afe7"
+   }
+  },
+  "a_l3": {
+   "median_s": 0.045,
+   "rss_median_kb": 37152,
+   "rss_all_kb": [
+    37120,
+    37152,
+    37440
+   ],
+   "warmup_s": 0.046,
+   "bytes": {
+    "leg": "zstd",
+    "level": 3,
+    "window": 0,
+    "pledge": 0,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196624,
+    "sizeof_cctx": 3663377,
+    "sha": "4d9f7b67cb1f62aa"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "3f3af6f26b45"
+   }
+  },
+  "a_l10": {
+   "median_s": 0.05,
+   "rss_median_kb": 37168,
+   "rss_all_kb": [
+    37520,
+    37168,
+    37008
+   ],
+   "warmup_s": 0.048,
+   "bytes": {
+    "leg": "zstd",
+    "level": 10,
+    "window": 0,
+    "pledge": 0,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196624,
+    "sizeof_cctx": 25945617,
+    "sha": "fb8ac48dbafcd4b2"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "0083821cdfe6"
+   }
+  },
+  "a_l19": {
+   "median_s": 0.063,
+   "rss_median_kb": 86416,
+   "rss_all_kb": [
+    86400,
+    86416,
+    86416
+   ],
+   "warmup_s": 0.088,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 0,
+    "pledge": 0,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196624,
+    "sizeof_cctx": 93848207,
+    "sha": "e3b226aca061711a"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "fcf6bec29b1a"
+   }
+  },
+  "b_l19_w23": {
+   "median_s": 0.065,
+   "rss_median_kb": 86400,
+   "rss_all_kb": [
+    86400,
+    86400,
+    86416
+   ],
+   "warmup_s": 0.067,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 23,
+    "pledge": 0,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196624,
+    "sizeof_cctx": 93848207,
+    "sha": "e3b226aca061711a"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "fcf6bec29b1a"
+   }
+  },
+  "b_l19_w20": {
+   "median_s": 0.063,
+   "rss_median_kb": 86384,
+   "rss_all_kb": [
+    86432,
+    86384,
+    86368
+   ],
+   "warmup_s": 0.064,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 20,
+    "pledge": 0,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196624,
+    "sizeof_cctx": 86508175,
+    "sha": "b66c2b66460b47c2"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "7bb8519763fc"
+   }
+  },
+  "b_l19_w16": {
+   "median_s": 0.062,
+   "rss_median_kb": 85984,
+   "rss_all_kb": [
+    85984,
+    85984,
+    85952
+   ],
+   "warmup_s": 0.063,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 16,
+    "pledge": 0,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196630,
+    "sizeof_cctx": 84825840,
+    "sha": "2079df2dbc2b1e9e"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "14a81ce7eeee"
+   }
+  },
+  "b2_l19_pledge": {
+   "median_s": 0.052,
+   "rss_median_kb": 37472,
+   "rss_all_kb": [
+    37472,
+    37248,
+    37520
+   ],
+   "warmup_s": 0.054,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 0,
+    "pledge": 1,
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196627,
+    "sizeof_cctx": 5964431,
+    "sha": "c73586e6de528331"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "18d5588cca11"
+   }
+  },
+  "c_l19_s64x64": {
+   "median_s": 0.055,
+   "rss_median_kb": 85040,
+   "rss_all_kb": [
+    85040,
+    85040,
+    85040
+   ],
+   "warmup_s": 0.056,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 0,
+    "pledge": 0,
+    "w": 64,
+    "h": 64,
+    "plane": 12288,
+    "len": 12301,
+    "sizeof_cctx": 93848207,
+    "sha": "0e70d811964d30b7"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "509c291de63a"
+   }
+  },
+  "c_l19_s128x128": {
+   "median_s": 0.055,
+   "rss_median_kb": 85504,
+   "rss_all_kb": [
+    85504,
+    85504,
+    85520
+   ],
+   "warmup_s": 0.058,
+   "bytes": {
+    "leg": "zstd",
+    "level": 19,
+    "window": 0,
+    "pledge": 0,
+    "w": 128,
+    "h": 128,
+    "plane": 49152,
+    "len": 49165,
+    "sizeof_cctx": 93848207,
+    "sha": "d0f410420065672a"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "41a6f26ad1e6"
+   }
+  },
+  "d_anchor_engine": {
+   "median_s": 0.082,
+   "rss_median_kb": 86224,
+   "rss_all_kb": [
+    86224,
+    86000,
+    86224
+   ],
+   "warmup_s": 0.075,
+   "bytes": {
+    "leg": "anchor",
+    "w": 256,
+    "h": 256,
+    "plane": 196608,
+    "len": 196624,
+    "sizeof_cctx": 93848207,
+    "sha": "cd04b719f69e10db"
+   },
+   "identity": {
+    "identical": true,
+    "sha256": "5ebdf3e0c452"
+   }
+  }
+ },
+ "decomposition": {
+  "note": "all RSS values are process peak ru_maxrss medians (KiB); one cargo-test process per leg; constant binary overhead cancels across legs",
+  "process_floor_kib": 37056,
+  "level_ladder_rss_kib": {
+   "l3": 37152,
+   "l10": 37168,
+   "l19": 86416
+  },
+  "level_ladder_ctx_bytes": {
+   "l3": 3663377,
+   "l10": 25945617,
+   "l19": 93848207
+  },
+  "level19_workspace": {
+   "touched_rss_delta_kib": 49360,
+   "ctx_accounted_bytes": 93848207,
+   "ctx_accounted_kib": 91648,
+   "untouched_in_ctx_bytes": 43303567,
+   "zstd_1_5_7_level19_cparams": "windowLog 23, chainLog 24, hashLog 22, searchLog 7, minMatch 3, strategy btultra2 (clevels.h)",
+   "chain_table_max_bytes": 67108864,
+   "hash_table_max_bytes": 16777216,
+   "window_buffer_bytes": 8388608,
+   "chain_plus_hash_plus_window_bytes": 92274688
+  },
+  "window_knob": {
+   "w20_rss_delta_kib": -32,
+   "w16_rss_delta_kib": -432,
+   "w16_ctx_delta_bytes": 9022367,
+   "w16_ctx_delta_is_window_buffer_bytes": true,
+   "bytes_default_vs_w16": [
+    196624,
+    196630
+   ],
+   "explicit_w23_matches_default": {
+    "ctx_equal_bytes": true,
+    "rss_equal": true,
+    "bytes_equal": true,
+    "note": "explicit WindowLog(23) reproduces the level-19 default exactly in ctx accounting (93,848,207 B) and bytes; RSS within run noise (16 KiB)"
+   }
+  },
+  "pledged_src_size": {
+   "rss_kib": 37472,
+   "rss_delta_kib": -48944,
+   "ctx_bytes": 5964431,
+   "ctx_delta_bytes": 87883776,
+   "bytes_default_vs_pledge": [
+    196624,
+    196627
+   ]
+  },
+  "plane_size_scaling_level19": {
+   "rss_kib": {
+    "64x64": 85040,
+    "128x128": 85504,
+    "256x256": 86416
+   },
+   "bytes": [
+    12301,
+    49165,
+    196624
+   ]
+  },
+  "engine_extra_in_anchor_kib": -192,
+  "anchor_in_run_vs_w7a_high_entropy_l1_kib": 160
+ }
+}
