@@ -115,8 +115,11 @@ fn image_of(p: &manifold_frame::decode::Pixels) -> Result<Image, String> {
 }
 
 fn encode_cmd(args: &Args) {
-    // Load via the image-io boundary. PNG sources carry their ICC
-    // transparently; JPEG loads are exactness-caveated upstream — the
+    // Load via the image-io boundary. IMPORTANT (v1 contract): the CLI
+    // encodes PIXELS only — a source PNG's ICC/EXIF/XMP are NOT carried
+    // into the container (single-chunk Rgb8 shape; metadata stays a
+    // serializer-path feature, see integrations/README.md's known
+    // limitations). JPEG loads are exactness-caveated upstream — the
     // encode still works, the SOURCE was lossy, not MNFX.
     let img =
         img::load(&args.src).unwrap_or_else(|e| die(&format!("load {}: {e}", args.src.display())));
@@ -140,7 +143,11 @@ fn encode_cmd(args: &Args) {
         width: dims.width,
         height: dims.height,
     };
-    let buf = manifold_frame::serialize(&hdr, &[(ChunkType::Pixel, codec, &file)])
+    // W8-C: the CLI is a producer — every write it makes is PROVEN:
+    // serialize_checked runs the emitted bytes through the full parse
+    // rule set (rule-13 matrix incl. embed-on-Rgb8) before the file
+    // lands on disk, per the produce-facing contract.
+    let buf = manifold_frame::serialize_checked(&hdr, &[(ChunkType::Pixel, codec, &file)])
         .unwrap_or_else(|e| die(&format!("serialize: {e}")));
     std::fs::write(&args.out, &buf)
         .unwrap_or_else(|e| die(&format!("write {}: {e}", args.out.display())));

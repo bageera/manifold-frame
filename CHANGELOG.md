@@ -14,6 +14,15 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-C — CLI correctness: the `mnfx` encoder is a PRODUCER and now
+  writes through `serialize_checked` — every emitted container is
+  proven against the full parse rule set (the rule-13 codec matrix +
+  the ORNT-mirrors-the-header contract) before it touches disk; the
+  unchecked `serialize` remains the lossless-rewrite builder
+  (tooling). The stale encoder comment claiming source ICC "carries
+  transparently" is corrected to the actual v1 contract: the CLI
+  encodes PIXELS only — source ICC/EXIF/XMP are NOT carried
+  (documented limitation, integrations/README.md). No wire change.
 - W8-B4 — independent artifact consumer (reproducibility; no wire or
   ABI change): validation moves entirely outside the producer
   environment. `scripts/b4_consumer_gate.sh` exercises ONLY the
