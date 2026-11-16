@@ -18,29 +18,33 @@ jobs:
         with:
           components: rustfmt, clippy
       # The sibling engine repo is a path dependency (../manifold);
-      # CI can't use it, so the published version is checked out at
-      # the expected sibling path (the W5-C independent-consumer rule
-      # holds BECAUSE the packaged manifest pins the registry version).
-      - name: Vendor the published engine source into ../manifold
-        run: |
-          VERS=$(cargo search manifold-codec --limit 1 | head -1 | sed 's/.*= "\([^"]*\)".*/\1/')
-          echo "vendoring manifold-codec ${VERS}"
-          curl -sL "https://crates.io/api/v1/crates/manifold-codec/${VERS}/download" -o /tmp/mc.crate
-          tar -xzf /tmp/mc.crate -C /tmp
-          rm -rf ../manifold && mv /tmp/manifold-codec-* ../manifold
+      # CI can't use it, so the LOCK-PINNED version is vendored at the
+      # expected sibling path (W8-B1: exact version from the committed
+      # Cargo.lock — the same resolution local and release builds use —
+      # with its published sha256 verified; "whatever cargo search found"
+      # is gone). The frame steps run --locked so any resolution drift
+      # alarms instead of silently re-basing.
+      - name: Vendor the lock-pinned engine into ../manifold
+        run: python3 scripts/vendor_engine.py --into ../manifold
+      - name: Build provenance record (engine sha, lockfile, toolchain, target)
+        run: python3 scripts/write_provenance.py --out w8b1-provenance.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: w8b1-provenance
+          path: w8b1-provenance.json
       - run: cargo fmt -p manifold-frame -p manifold-frame-capi -- --check
-      - run: cargo clippy -p manifold-frame -p manifold-frame-capi --all-targets -- -D warnings
+      - run: cargo clippy --locked -p manifold-frame -p manifold-frame-capi --all-targets -- -D warnings
       # Unit + capi tests only: the corpus/acceptance/fuzz gates need
       # the engine repo's image fixtures (a local release gate, not CI —
       # CI proves the independent-consumer build instead).
-      - run: cargo test -p manifold-frame --lib -p manifold-frame-capi
+      - run: cargo test --locked -p manifold-frame --lib -p manifold-frame-capi
       # W6-E: the conformance gate needs only the published engine (no
       # testdata) — runs everywhere, all six formats sample-exact.
-      - run: cargo test -p manifold-frame --test w6e_conformance
+      - run: cargo test --locked -p manifold-frame --test w6e_conformance
       - name: cc smoke gate (real compile + link of the C ABI)
         run: |
-          cargo build -p manifold-frame-capi --release
-          cargo test -p manifold-frame-capi --release
+          cargo build --locked -p manifold-frame-capi --release
+          cargo test --locked -p manifold-frame-capi --release
       # NOTE: the CLI/fuzz gates need the real ../manifold working tree
       # (image fixtures); keep them in the local release gate, not CI —
       # CI proves the independent-consumer build instead.
@@ -54,11 +58,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: i686-unknown-linux-gnu
-      - name: Vendor the published engine source (same as the linux job)
-        run: |
-          mkdir -p ../manifold-src
-          VERS=$(cargo search manifold-codec --limit 1 | head -1 | sed 's/.*= "\([^"]*\)".*/\1/')
-          curl -sL "https://crates.io/api/v1/crates/manifold-codec/${VERS}/download" -o /tmp/mc.crate
-          tar -xzf /tmp/mc.crate -C /tmp && rm -rf ../manifold && mv /tmp/manifold-codec-* ../manifold
+      - name: Vendor the lock-pinned engine (same as the linux job)
+        run: python3 scripts/vendor_engine.py --into ../manifold
       - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
-      - run: cargo check --target i686-unknown-linux-gnu -p manifold-frame -p manifold-frame-capi
+      - run: cargo check --locked --target i686-unknown-linux-gnu -p manifold-frame -p manifold-frame-capi

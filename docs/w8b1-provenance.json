@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-11-16T03:22:25.309668+00:00",
+  "crate": {
+    "name": "manifold-frame",
+    "version": "0.1.1"
+  },
+  "engine": {
+    "pinned_version": "1.16.0",
+    "manifest_requirement": "1.14",
+    "published_sha256": "4787c4cdec16be1effb41d011101a7c48177557c4b59142a61e0e3e886c2357f",
+    "source": "crates.io registry (API-published checksum)"
+  },
+  "lockfile": {
+    "path": "Cargo.lock",
+    "sha256": "e2cef9c524c79a66d8b03dc3da938befe745dac2f951907a4e0973b318ac22af"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+    "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)"
+  },
+  "target": "aarch64-apple-darwin",
+  "git": {
+    "commit": "df8b42aeec3289dbd5d1d4deba30dc27430ac59c",
+    "tree_dirty": true
+  }
+}

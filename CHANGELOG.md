@@ -14,6 +14,21 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-B1 — deterministic engine resolution (reproducibility; no wire
+  change): the committed `Cargo.lock` pins manifold-codec 1.16.0; CI
+  vendors EXACTLY the lock-pinned engine via `scripts/vendor_engine.py`
+  (crates.io download; sha256 verified against the API-published
+  checksum AND the transferred bytes; refuses to clobber a real git
+  clone) and every resolution-sensitive CI step runs `--locked` — the
+  `cargo search` latest-version gamble is gone (the vendored 1.16.0 src
+  is byte-identical to the local sibling, verified). `scripts/
+  write_provenance.py` records a build's full provenance (engine
+  version + sha, lockfile sha, rustc/cargo, target triple, git
+  revision): the gate vintage committed as `docs/w8b1-provenance.json`,
+  per-run artifact uploaded in CI. Local sibling development remains an
+  explicit override: the path dep drives dev builds only — the packaged
+  manifest stays registry-pinned, and any resolution drift alarms via
+  `--locked`.
 - W8-A — Format hardening (correctness + grammar alignment; NO wire
   change; ships as a crate patch release with the validation notes):
   - A1: orientation ARBITRATION corrected (rule 12): resolution is
