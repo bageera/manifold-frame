@@ -14,6 +14,21 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-A3 — parser arithmetic safety (correctness/security; NO wire
+  change): every offset+length sum in the chunk walk is computed in
+  u64 BEFORE any usize slice. The wire u32 `stored_len` can no longer
+  enter usize arithmetic: on 32-bit targets the unchecked
+  `pos + stored_len` wrapped, silently PASSED the bounds check, and
+  panicked the payload slice (grammar rule 6 — malformed input must
+  never panic). Rejection is a controlled `Err`. Adjacent sites
+  audited: the chunk-header bound (safe by the slice-size invariant,
+  width-guarded anyway), the pos advance (derived from the guarded
+  end), payload_offset (payload-length based), serialize's
+  u32::try_from gates, decode's checked_mul plane bound, the capi's
+  try_from conversions. Regression: hostile stored_len = 0xFFFF_FFFD
+  rejects clean in every build profile; the i686 CI job EXECUTES the
+  hostile fixture on a real 32-bit process (debug + release) —
+  `cargo check` alone proves nothing about runtime arithmetic.
 - W8-B1 — deterministic engine resolution (reproducibility; no wire
   change): the committed `Cargo.lock` pins manifold-codec 1.16.0; CI
   vendors EXACTLY the lock-pinned engine via `scripts/vendor_engine.py`

@@ -98,15 +98,22 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
             )));
         }
         pos += CHUNK_HEADER_SIZE;
-        let stored_len = stored_len as usize;
-        if buf.len() < pos + stored_len {
+        // W8-A3: every offset+length sum is computed in u64 BEFORE any
+        // usize slice. The wire u32 stored_len must never enter usize
+        // arithmetic: on 32-bit targets the unchecked `pos + stored_len`
+        // wrapped, silently PASSED this bounds check, and panicked the
+        // payload slice (grammar rule 6). pos is a real offset (<=
+        // buf.len()), so its widening is exact on every width.
+        let stored_end = pos as u64 + u64::from(stored_len);
+        if (buf.len() as u64) < stored_end {
             return Err(Error::fmt_msg(format!(
                 "mnfx: chunk {i} stored_len {stored_len} exceeds the file"
             )));
         }
         // CRC BEFORE parse (normative).
-        let payload = &buf[pos..pos + stored_len];
-        pos += stored_len;
+        let payload_end = stored_end as usize; // <= buf.len(): always fits
+        let payload = &buf[pos..payload_end];
+        pos = payload_end;
         let got = crc32c(payload);
         if got != crc {
             return Err(Error::fmt_msg(format!(
@@ -195,10 +202,10 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
             header: ChunkHeader {
                 chunk_type,
                 codec,
-                stored_len: stored_len as u32,
+                stored_len,
                 raw_len,
                 crc,
-                payload_offset: pos - stored_len,
+                payload_offset: pos - payload.len(),
             },
             stored: payload.to_vec(),
         });
@@ -438,6 +445,27 @@ mod tests {
         ]);
         buf[stored_field..stored_field + 4].copy_from_slice(&(cur + 100).to_le_bytes());
         assert!(parse(&buf).is_err());
+    }
+
+    #[test]
+    fn hostile_stored_len_cannot_wrap_the_bounds_check() {
+        // W8-A3: the wire u32 stored_len must never enter usize
+        // arithmetic. On 32-bit, pos(34) + 0xFFFF_FFFD wraps to 31 — the
+        // pre-W8-A3 `buf.len() < pos + stored_len` silently PASSED and
+        // the payload slice panicked (start > end; grammar rule 6). The
+        // u64 walk rejects: a controlled Err in EVERY build profile, on
+        // EVERY target width (the i686 CI legs execute this on a real
+        // 32-bit process — cargo check alone proves nothing about
+        // runtime arithmetic). The file is 34 B (header + chunk header,
+        // CRC word stale but unreachable): the bounds check fires
+        // before CRC.
+        let hdr = sample_header();
+        let payload = rgb_payload();
+        let buf = serialize(&hdr, &[(ChunkType::Pixel, Codec::Raw, &payload)]).unwrap();
+        let mut hostile = buf[..HEADER_SIZE + CHUNK_HEADER_SIZE].to_vec();
+        let len_field = HEADER_SIZE + 8; // stored_len: bytes 8..12 of the chunk header
+        hostile[len_field..len_field + 4].copy_from_slice(&0xFFFF_FFFDu32.to_le_bytes());
+        assert!(parse(&hostile).is_err(), "wrap must reject, never panic");
     }
 
     #[test]

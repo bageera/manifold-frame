@@ -61,4 +61,12 @@ jobs:
       - name: Vendor the lock-pinned engine (same as the linux job)
         run: python3 scripts/vendor_engine.py --into ../manifold
       - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+      # W8-A3: cargo check cannot prove runtime arithmetic safety. RUN
+      # the hostile-length regression on a real 32-bit executable, in
+      # BOTH profiles: debug (overflow checks on — the wrap would panic
+      # the add) and release (the wrap would silently pass the bounds
+      # check and panic the slice). Requires the 32-bit loader.
+      - run: sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get install -y libc6:i386 libgcc-s1:i386
+      - run: cargo test --locked --target i686-unknown-linux-gnu -p manifold-frame --lib hostile_stored_len
+      - run: cargo test --locked --release --target i686-unknown-linux-gnu -p manifold-frame --lib hostile_stored_len
       - run: cargo check --locked --target i686-unknown-linux-gnu -p manifold-frame -p manifold-frame-capi
