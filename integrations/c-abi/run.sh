@@ -3,8 +3,12 @@
 # (fixtures regenerating + all six formats byte-exact + one hostile leg)
 set -e
 cd "$(dirname "$0")/../.."
-export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
-export RUSTUP_HOME="$HOME/.rustup"
+# Rustup lives in several homes (GitHub macOS runner puts cargo on PATH
+# already; local brew rustup does not). Only extend PATH when cargo is
+# NOT already resolvable — no hardcoded toolchain/version dirs (W8-B2:
+# the runner's architecture is recorded from rustc, never assumed).
+command -v cargo >/dev/null 2>&1 || \
+  export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
 D=/tmp/w6e/fixtures
 MNFX_WRITE_FIXTURES=$D cargo test -q -p manifold-frame --test w6e_conformance fixtures_write >/dev/null
 cargo build -q -p manifold-frame-capi --release

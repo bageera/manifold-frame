@@ -70,3 +70,46 @@ jobs:
       - run: cargo test --locked --target i686-unknown-linux-gnu -p manifold-frame --lib hostile_stored_len
       - run: cargo test --locked --release --target i686-unknown-linux-gnu -p manifold-frame --lib hostile_stored_len
       - run: cargo check --locked --target i686-unknown-linux-gnu -p manifold-frame -p manifold-frame-capi
+
+  macos:
+    # W8-B2: native macOS gate — the .dylib platform gets a real runner
+    # (the binary-artifact pipeline W8-B3 lands on top of this). The
+    # runner's architecture is RECORDED (provenance artifact), never
+    # assumed from "macos-latest".
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Vendor the lock-pinned engine into ../manifold
+        run: python3 scripts/vendor_engine.py --into ../manifold
+      - name: Build provenance record (engine sha, lockfile, toolchain, runner arch)
+        run: python3 scripts/write_provenance.py --out w8b1-provenance-macos.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: w8b1-provenance-macos
+          path: w8b1-provenance-macos.json
+      - run: cargo fmt -p manifold-frame -p manifold-frame-capi -- --check
+      - run: cargo clippy --locked -p manifold-frame -p manifold-frame-capi --all-targets -- -D warnings
+      - run: cargo test --locked -p manifold-frame --lib
+      - run: cargo test --locked -p manifold-frame --test w6e_conformance
+      - name: C ABI smoke gate (the dylib links a real C consumer on macOS)
+        run: |
+          cargo build --locked -p manifold-frame-capi --release
+          cargo test --locked -p manifold-frame-capi --release
+          bash integrations/c-abi/run.sh
+
+  msrv:
+    # W8-B2: prove the declared rust-version = 1.91 actually builds the
+    # LOCKED dependency tree. A failure names the offending dependency —
+    # the MSRV is raised only on that evidence, never automatically.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.91
+      - name: Vendor the lock-pinned engine into ../manifold
+        run: python3 scripts/vendor_engine.py --into ../manifold
+      - run: cargo build --locked -p manifold-frame -p manifold-frame-capi
+      - run: cargo test --locked -p manifold-frame --lib
+      - run: cargo test --locked -p manifold-frame-capi

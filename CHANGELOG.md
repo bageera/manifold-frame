@@ -14,6 +14,17 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-B2 — native macOS CI + MSRV (reproducibility; no wire change):
+  CI gains a macOS job — vendoring, provenance (the runner's actual
+  architecture is RECORDED, never assumed from `macos-latest`),
+  fmt + clippy --locked, lib tests + W6-E conformance --locked, and
+  the C-ABI gate end to end (the `.dylib` builds and links a real C
+  consumer: the cc smoke via `integrations/c-abi/run.sh`, whose
+  hardcoded toolchain PATH is replaced by a resolvable-cargo
+  fallback). A new MSRV job pins rustc 1.91 and builds/tests the
+  LOCKED dependency tree — a failure names the offending dependency;
+  the MSRV never raises automatically. Linux x86-64 and i686 gates
+  unchanged.
 - W8-A3 — parser arithmetic safety (correctness/security; NO wire
   change): every offset+length sum in the chunk walk is computed in
   u64 BEFORE any usize slice. The wire u32 `stored_len` can no longer

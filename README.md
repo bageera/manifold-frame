@@ -16,6 +16,8 @@ Verification board:
 | Gate | Evidence |
 | --- | --- |
 | Reproducibility (W8-B1) | `Cargo.lock` committed (engine pinned 1.16.0); CI vendors exactly the lock-pinned engine via `scripts/vendor_engine.py` (sha256-verified) and runs `--locked`; build provenance in `docs/w8b1-provenance.json` + per-CI-run artifact |
+| Native CI + MSRV (W8-B2) | macOS runner job (vendored lock-pinned engine, `--locked` gates, cc smoke against the shipped `.dylib` via `integrations/c-abi/run.sh`) + a rustc 1.91 MSRV job over the committed lockfile; runner architecture recorded in the provenance artifact |
+| Parser arithmetic (W8-A3) | Chunk-walk offset+length sums computed in u64 before any usize slice (`src/parser.rs`); hostile stored_len regression (`hostile_stored_len_cannot_wrap_the_bounds_check`) executed on a real 32-bit process in CI, debug + release |
 | Container conformance (v1) | `tests/w6e_conformance.rs`: all six pixel formats (RGB8, RGBA8, Gray8, GrayA8, RGB16, Gray16) sample-exact through `serialize → parse → decode_pixels`, incl. raw/zstd/embed RGB8 arms; CI-runnable, no testdata |
 | CLI + acceptance | `mnfx encode` (engine pick: MNF8/MNF9 race, smallest file ships), `decode`, `verify`; `tests/w5_acceptance.rs` + corruption/fuzz (`scripts/fuzz.py`: 340 trials/0 panics) |
 | Corpus | `tests/corpus_embed.rs`: 30/30 files, embedded == standalone == source, +34 B framing exact |
