@@ -1,4 +1,4 @@
-# MNFX v1 grammar — W0-frozen (2026-10-29)
+# MNFX v1 grammar — W0-frozen (2026-10-29); amended W8-A (2026-11-15: rule 12 orientation arbitration + rule 13 codec matrix)
 
 The container grammar per the ADR-009 review's corrections
 (../manifold/docs/adr-009-mnfx-review.md). Implemented in
@@ -81,13 +81,40 @@ Chunk types: 1 PIXEL, 2 EXIF, 3 XMP, 4 ICC, 5 CICP, 6 ORNT, 7 PIX16-HI,
    each; duplicates reject rather than merge (a repeated profile or
    double orientation has no single meaning). Order is preserved
    through parse→serialize (the lossless rewrite contract; W4-A).
-12. Metadata semantics (W4-B): color precedence ICC > CICP (the PNG
-   spec's rule referenced, not restated); EXIF orientation tag 0x0112
-   > header orientation field > default 1; ORNT (1 B, 1..=8) mirrors
-   the header field. CICP = 4 bytes; EXIF = a TIFF byte-order shell
-   ("II"/"MM" + 42). Boundary validation ONLY: the full EXIF/ICC/
-   XMP structures belong to consumers — the container preserves
-   bytes and never interprets what it doesn't check.
+12. Metadata semantics (W4-B; arbitration corrected W8-A 2026-11-15):
+    color precedence ICC > CICP (the PNG spec's rule referenced, not
+    restated). Orientation resolution is EXIF tag 0x0112 (a well-formed
+    SHORT/count-1 IFD0 entry with value 1..=8) > ORNT chunk (1 B,
+    1..=8) > header orientation field > default 1 — INDEPENDENT of
+    chunk order (pre-W8 parsing resolved last-chunk-wins; consumers
+    relying on that are corrected). ORNT mirrors the header field:
+    producers keep ORNT and the header field consistent — a mismatch
+    is NOT a rejection (the ORNT value acts as the header field's
+    expression and loses only to an EXIF tag), and `serialize_checked`
+    refuses to EMIT such a mismatch into a new container. An EXIF
+    payload without a well-formed 0x0112 entry contributes nothing to
+    the arbitration. CICP = 4 bytes; EXIF = a TIFF byte-order shell
+    ("II"/"MM" + 42). Boundary validation ONLY: the full EXIF/ICC/
+    XMP structures belong to consumers — the container preserves
+    bytes and never interprets what it doesn't check.
+13. Codec/chunk compatibility matrix (W8-A2 2026-11-15 — normative;
+    one shared implementation enforced by parse and proven by
+    serialize_checked; the decoders keep matching guards for callers
+    that build Chunk values without the parser). PIXEL: raw or zstd,
+    with MNF8/MNF9 only when pixel_format 1 (RGB8). PIX16-HI/PIX16-LO:
+    raw or zstd only — an embed codec rejects at parse. EXIF/XMP/ICC/
+    CICP/ORNT: raw only in v1 (a compressed-metadata payload would
+    need a decode bound the grammar does not carry). Unknown optional
+    chunks keep the byte-preservation vocabulary (any codec except 5,
+    per rule 3); unknown critical chunks reject before this matrix is
+    consulted.
+
+    Validation correction: containers whose compressed or embed-coded
+    metadata parsed before W8-A reject at parse now; pixel-plane embed
+    codecs and pixel embeds under non-RGB8 headers likewise move from
+    decode-time to parse-time rejection. Decode-driven consumers see
+    identical outcomes (FORMAT_INVALID on the C ABI); raw-only
+    producers and the shipped fixtures/corpus are unaffected.
 
 ## Framing accounting (v1)
 
@@ -107,4 +134,7 @@ photo class) — 37 unit tests + the W4-C differential test. W5 added
 the integrated encoder (`mnfx` CLI: automatic engine pick = MNF8
 profile-arm vs MNF9 whole-frame arm at complete-file size) with the
 mutation fuzzer (340 trials 0 panics; accepted set = pure appends
-only).
+only). W8-A (2026-11-15) amended this document: rule 12's orientation
+arbitration (EXIF tag > ORNT > header field, order-independent) and
+rule 13 (the codec/chunk compatibility matrix, enforced at parse;
+`serialize_checked` added). The wire format is unchanged.

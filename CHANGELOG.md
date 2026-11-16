@@ -14,6 +14,25 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-A — Format hardening (correctness + grammar alignment; NO wire
+  change; ships as a crate patch release with the validation notes):
+  - A1: orientation ARBITRATION corrected (rule 12): resolution is
+    EXIF tag 0x0112 > ORNT chunk > header field > default 1,
+    independent of chunk order. The pre-W8 parser resolved
+    last-chunk-wins — an ORNT chunk placed after a tagged EXIF
+    overrode it. Acceptance-matrix fixtures (all six rows), both TIFF
+    byte orders, both chunk orders, lossless rewrite pinned.
+  - A2: the codec/chunk compatibility matrix is normative (new rule
+    13; shared implementation `validate_codec_compatibility`):
+    metadata chunks (EXIF/XMP/ICC/CICP/ORNT) are raw-coded only;
+    PIX16-HI/LO reject embed codecs at parse (was decode); PIXEL
+    embeds require pixel_format 1 (RGB8) at parse (was decode).
+    `serialize_checked` added — serialize + full-parse proof of the
+    emitted bytes (one rule set, no drift), plus the producer-only
+    ORNT-mirrors-the-header contract. Validation correction:
+    compressed or embed-coded metadata containers that parsed before
+    W8-A reject at parse now; decode-driven consumers (incl. the C
+    ABI's FORMAT_INVALID mapping) see identical outcomes.
 - W7-A (measurement-only): the encoder candidate evaluation is
   already sequential (no rayon/threads in the engine encode path;
   the lattice = a plain loop: balanced 32 arms, maximum 160). The

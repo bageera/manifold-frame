@@ -58,8 +58,10 @@ limitations).
 
 Metadata: EXIF/XMP/ICC/CICP/OpenEXR orientation preserved
 byte-exact with chunk order; duplicates of known metadata chunks
-reject; color precedence ICC > CICP; orientation = EXIF 0x0112 >
-header field > 1; samples never rotated at decode.
+reject; metadata chunks are raw-coded in v1 (grammar rule 13); color
+precedence ICC > CICP; orientation = EXIF 0x0112 > ORNT chunk >
+header field > 1, independent of chunk order; samples never rotated
+at decode.
 
 ## Versioning
 

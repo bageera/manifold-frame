@@ -22,9 +22,10 @@
 //! ```
 //! Rules (normative): bounds derive from the file length; CRC32C is
 //! validated BEFORE parse; unknown non-critical chunks skip, unknown
-//! critical chunks reject; exactly one PIXEL chunk; codec 5 (MNF9
-//! embed) = whole-frame, sole pixel layer; malformed input = Err,
-//! never panic.
+//! critical chunks reject; exactly one PIXEL chunk; the rule-13
+//! codec/chunk compatibility matrix (embed codecs on the RGB8 pixel
+//! layer only, PIX16 planes raw/zstd, metadata raw-coded); malformed
+//! input = Err, never panic.
 
 /// W1: pixel-layer decode (embedded == standalone gate).
 pub mod decode;
@@ -238,4 +239,4 @@ pub fn crc32c(data: &[u8]) -> u32 {
 }
 pub use crate::decode::{decode_image, decode_pixels, Metadata};
 pub use crate::error::Error;
-pub use crate::parser::{parse, serialize, Chunk};
+pub use crate::parser::{parse, serialize, serialize_checked, validate_codec_compatibility, Chunk};

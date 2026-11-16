@@ -1,9 +1,10 @@
-//! W1/W2: pixel-layer decode — embedded MNF8/MNF9 files decode
+//! W1–W4: pixel-layer decode — embedded MNF8/MNF9 files decode
 //! byte-identically to their standalone decode (the W1 exit gate); the
-//! W2 plane formats (RGB8/RGBA8/Gray8/GrayA8) decode raw and zstd
+//! plane formats (RGB8/RGBA8/Gray8/GrayA8, W2) decode raw and zstd
 //! planes against the format-derived stride bound, hidden RGB
 //! preserved (grammar rule 8 — the plane's alpha and color channels
-//! all come back byte-exact).
+//! all come back byte-exact); W3 adds the 16-bit PIX16-HI/LO pairs
+//! (big-endian interleave); W4 adds the metadata surface (rule 12).
 
 use crate::error::{Error, Result};
 use crate::parser::Chunk;
@@ -18,7 +19,8 @@ pub struct Pixels {
     /// The container's pixel format (echoed for the caller).
     pub format: PixelFormat,
     /// Interleaved row-major samples, `width * height * stride` bytes
-    /// (stride = 3 RGB8, 4 RGBA8/GrayA8, 1 Gray8).
+    /// (stride = 3 RGB8, 4 RGBA8, 1 Gray8, 2 GrayA8, 6 RGB16,
+    /// 2 Gray16 — `PixelFormat::stride_mult`).
     pub samples: Vec<u8>,
 }
 
@@ -116,11 +118,13 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
 
 /// The complete decoded image: pixels + the W4 metadata surface.
 ///
-/// Semantics (grammar rule 12): color precedence ICC > CICP (the PNG
-/// spec's own rule); orientation = EXIF tag > header field (the
-/// header's default 1 applies only when no EXIF orientation chunk is
-/// present, and an ORNT chunk mirrors the header field). Samples are
-/// NEVER rotated at decode — the container stores pixels unrotated.
+/// Semantics (grammar rule 12, arbitration corrected W8-A): color
+/// precedence ICC > CICP (the PNG spec's own rule); orientation =
+/// EXIF tag 0x0112 > ORNT chunk > header field, INDEPENDENT of chunk
+/// order (ORNT mirrors the header field: producers keep them
+/// consistent, the reader resolves ORNT as the header field's
+/// expression, losing only to an EXIF tag). Samples are NEVER rotated
+/// at decode — the container stores pixels unrotated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Metadata<'a> {
     /// EXIF payload (preserved bytes; TIFF/HEIF structure per EXIF spec).
@@ -131,8 +135,8 @@ pub struct Metadata<'a> {
     pub icc: Option<&'a [u8]>,
     /// CICP signaling (preserved bytes).
     pub cicp: Option<&'a [u8]>,
-    /// Orientation 1..=8: EXIF orientation tag takes precedence over
-    /// the header field; the header's value is the fallback.
+    /// Orientation 1..=8, resolved EXIF tag 0x0112 > ORNT chunk >
+    /// header field (grammar rule 12; independent of chunk order).
     pub orientation: u8,
 }
 
@@ -140,6 +144,11 @@ pub struct Metadata<'a> {
 /// payload must be one byte 1..=8; CICP exactly 4 bytes; EXIF must
 /// start with a byte-order marker — the minimal preservation-boundary
 /// checks; full structure is the consumer's job).
+///
+/// Orientation arbitration (grammar rule 12, W8-A1): the EXIF tag and
+/// the ORNT value are collected INDEPENDENTLY during iteration and
+/// resolved ONCE after the loop — EXIF tag > ORNT > header field — so
+/// the result never depends on chunk order.
 fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<Metadata<'a>> {
     let mut m = Metadata {
         exif: None,
@@ -148,6 +157,9 @@ fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<M
         cicp: None,
         orientation: hdr.orientation,
     };
+    // Collected per source, resolved after iteration (W8-A1).
+    let mut exif_tag: Option<u8> = None;
+    let mut ornt: Option<u8> = None;
     for c in chunks {
         let p = &*c.stored;
         match c.header.chunk_type {
@@ -163,11 +175,12 @@ fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<M
                     ));
                 }
                 m.exif = Some(p);
-                // EXIF orientation tag 0x0112 (SHORT, count 1) overrides
-                // the header field (rule 12); read both TIFF byte orders.
-                // Full IFD walking is the consumer's job (ponytail: the
-                // container only arbitrates precedence, not EXIF parsing).
-                m.orientation = read_exif_orientation(p).unwrap_or(hdr.orientation);
+                // EXIF orientation tag 0x0112 (SHORT, count 1); read
+                // both TIFF byte orders. A payload without a well-formed
+                // entry contributes nothing to the arbitration. Full IFD
+                // walking is the consumer's job (ponytail: the container
+                // only arbitrates precedence, not EXIF parsing).
+                exif_tag = read_exif_orientation(p);
             }
             ChunkType::Xmp => m.xmp = Some(p),
             ChunkType::Icc => m.icc = Some(p),
@@ -187,11 +200,12 @@ fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<M
                         p.len()
                     )));
                 }
-                m.orientation = p[0];
+                ornt = Some(p[0]);
             }
             _ => {}
         }
     }
+    m.orientation = exif_tag.or(ornt).unwrap_or(hdr.orientation);
     Ok(m)
 }
 
@@ -296,7 +310,11 @@ fn decode_planar16(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
     }
     let (hi, lo) = match planes {
         [Some(h), Some(l)] => (h, l),
-        _ => return Err(Error::fmt_msg("mnfx: no pixel chunk")),
+        _ => {
+            return Err(Error::fmt_msg(
+                "mnfx: missing PIX16 hi/lo plane chunks (parser guarantees one each)",
+            ))
+        }
     };
     // Interleave: samples[n] = (hi[n], lo[n]) big-endian.
     let mut samples = Vec::with_capacity(hi.len() * 2);
@@ -631,17 +649,17 @@ mod tests {
 
     #[test]
     fn embed_codec_requires_rgb8_pixel_format() {
-        let (dims, px) = solid_8x8();
-        let file = manifold::mnf9::encode_exact(&px, dims).unwrap();
-        // Codec 5 under an RGBA8 header: reject (grammar rule 9).
+        // W8-A2 (grammar rule 9 enforced at parse): a PIXEL embed under
+        // a non-RGB8 header rejects at PARSE — pre-W8 the parser passed
+        // it through to decode. Payload bytes are irrelevant to the
+        // parse gate; the magic/routing check stays decode's job.
         let hdr = ContainerHeader {
             pixel_format: PixelFormat::Rgba8,
-            ..hdr_for(dims.width, dims.height)
+            ..hdr_for(8, 8)
         };
-        let buf = wrap_with(&hdr, &[(ChunkType::Pixel, Codec::MnF9, &file)]);
-        let (h, chunks) = parse(&buf).unwrap();
-        let err = decode_pixels(&h, &chunks).unwrap_err();
-        assert!(format!("{err}").contains("RGB8"), "got: {err}");
+        let fake: &[u8] = b"MNF9\x00\x00\x00\x00";
+        let buf = wrap_with(&hdr, &[(ChunkType::Pixel, Codec::MnF9, fake)]);
+        assert!(parse(&buf).is_err());
     }
 
     #[test]
@@ -840,8 +858,10 @@ mod tests {
                 (ChunkType::Pix16Lo, Codec::Raw, &lo),
             ],
         );
-        let (hc, chunks) = parse(&buf).unwrap();
-        assert!(decode_pixels(&hc, &chunks).is_err());
+        // W8-A2 (grammar rule 10 enforced at parse): an embed codec on a
+        // PIX16 plane rejects at PARSE now; the decode-side guard
+        // remains for callers that hand-build chunks (tested below).
+        assert!(parse(&buf).is_err());
     }
 
     #[test]
@@ -1058,5 +1078,179 @@ mod tests {
         );
         let (h, c) = parse(&buf).unwrap();
         assert!(decode_image(&h, &c).is_err());
+    }
+
+    // ---- W8-A1: orientation arbitration (rule 12, order-independent) ----
+
+    /// A minimal valid EXIF blob with ONE IFD0 entry: tag 0x0112
+    /// (Orientation), type SHORT, count 1, value `orientation`, in
+    /// either TIFF byte order.
+    fn exif_with_orientation(be: bool, orientation: u8) -> Vec<u8> {
+        fn num16(v: &mut Vec<u8>, x: u16, be: bool) {
+            v.extend_from_slice(&if be { x.to_be_bytes() } else { x.to_le_bytes() });
+        }
+        fn num32(v: &mut Vec<u8>, x: u32, be: bool) {
+            v.extend_from_slice(&if be { x.to_be_bytes() } else { x.to_le_bytes() });
+        }
+        let mut v: Vec<u8> = (if be { "MM" } else { "II" }).as_bytes().to_vec();
+        num16(&mut v, 42, be);
+        num32(&mut v, 8, be); // IFD0 offset
+        num16(&mut v, 1, be); // one entry
+        num16(&mut v, 0x0112, be); // the Orientation tag
+        num16(&mut v, 3, be); // type SHORT
+        num32(&mut v, 1, be); // count 1
+        num16(&mut v, u16::from(orientation), be);
+        num16(&mut v, 0, be); // pad the entry to 12 bytes
+        v
+    }
+
+    /// Serialize an 8x8 RGB8 raw-plane container with an optional EXIF
+    /// and/or ORNT chunk (header field = `header_orientation`); when
+    /// both are present, `exif_first` picks the chunk order.
+    fn meta_container(
+        header_orientation: u8,
+        exif: Option<&[u8]>,
+        ornt: Option<u8>,
+        exif_first: bool,
+    ) -> Vec<u8> {
+        let plane = vec![3u8; 8 * 8 * 3];
+        let mut chunks: Vec<(ChunkType, Codec, Vec<u8>)> =
+            vec![(ChunkType::Pixel, Codec::Raw, plane)];
+        if let Some(e) = exif {
+            chunks.push((ChunkType::Exif, Codec::Raw, e.to_vec()));
+        }
+        if let Some(o) = ornt {
+            chunks.push((ChunkType::Orientation, Codec::Raw, vec![o]));
+        }
+        if !exif_first && exif.is_some() && ornt.is_some() {
+            let n = chunks.len();
+            chunks.swap(n - 2, n - 1);
+        }
+        let hdr = ContainerHeader {
+            orientation: header_orientation,
+            chunk_count: chunks.len() as u16,
+            ..hdr_for(8, 8)
+        };
+        let refs: Vec<(ChunkType, Codec, &[u8])> = chunks
+            .iter()
+            .map(|(t, c, v)| (*t, *c, v.as_slice()))
+            .collect();
+        serialize(&hdr, &refs).unwrap()
+    }
+
+    fn decoded_orientation(buf: &[u8]) -> u8 {
+        let (h, c) = parse(buf).unwrap();
+        decode_image(&h, &c).unwrap().1.orientation
+    }
+
+    #[test]
+    fn orientation_arbitration_matrix() {
+        // The W8-A1 acceptance matrix (grammar rule 12, amended):
+        // EXIF tag > ORNT > header field > default 1.
+        let e6 = exif_with_orientation(false, 6);
+        assert_eq!(
+            decoded_orientation(&meta_container(4, Some(&e6), Some(3), true)),
+            6
+        ); // EXIF 6 wins over ORNT 3.
+        assert_eq!(
+            decoded_orientation(&meta_container(4, Some(&e6), None, true)),
+            6
+        );
+        // ORNT mirrors the header field (no EXIF tag): 3 over header 4.
+        assert_eq!(
+            decoded_orientation(&meta_container(4, None, Some(3), true)),
+            3
+        );
+        // Neither chunk: the header field stands.
+        assert_eq!(decoded_orientation(&meta_container(4, None, None, true)), 4);
+        // EXIF present WITHOUT an orientation tag: ORNT, else header.
+        let bare = exif_bytes();
+        assert_eq!(
+            decoded_orientation(&meta_container(4, Some(&bare), Some(3), true)),
+            3
+        );
+        assert_eq!(
+            decoded_orientation(&meta_container(4, Some(&bare), None, true)),
+            4
+        );
+        // An EXIF tag value outside 1..=8 is ignored (falls through).
+        let bad = exif_with_orientation(false, 9);
+        assert_eq!(
+            decoded_orientation(&meta_container(4, Some(&bad), None, true)),
+            4
+        );
+    }
+
+    #[test]
+    fn orientation_arbitration_ignores_chunk_order() {
+        // The W8-A1 defect: pre-W8, an ORNT placed after a tagged EXIF
+        // overrode it (last-chunk-wins). Both orders resolve to the
+        // EXIF tag now, and the lossless rewrite still holds byte-for-byte.
+        let e6 = exif_with_orientation(false, 6);
+        for exif_first in [true, false] {
+            let buf = meta_container(1, Some(&e6), Some(3), exif_first);
+            assert_eq!(decoded_orientation(&buf), 6, "exif_first={exif_first}");
+            let (h, c) = parse(&buf).unwrap();
+            let re = serialize(
+                &h,
+                &c.iter()
+                    .map(|c| (c.header.chunk_type, c.header.codec, &*c.stored))
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+            assert_eq!(re, buf, "lossless rewrite, exif_first={exif_first}");
+        }
+    }
+
+    #[test]
+    fn orientation_exif_tag_reads_in_both_byte_orders() {
+        // The W8-A1 fixtures must hold for "II" (LE) and "MM" (BE) shells.
+        let le = exif_with_orientation(false, 5);
+        let be = exif_with_orientation(true, 5);
+        assert_eq!(
+            decoded_orientation(&meta_container(1, Some(&le), None, true)),
+            5
+        );
+        assert_eq!(
+            decoded_orientation(&meta_container(1, Some(&be), None, true)),
+            5
+        );
+    }
+
+    #[test]
+    fn decode_defensive_guards_still_reject_without_parse() {
+        // Hand-built Chunk values bypass parse: the decode-side matrix
+        // guards stay in force (defense in depth for direct callers).
+        let (w, h) = (8u32, 8u32);
+        let half = (w * h) as usize;
+        let mk_chunk = |chunk_type: ChunkType, codec: Codec, payload: &[u8]| Chunk {
+            header: ChunkHeader {
+                chunk_type,
+                codec,
+                stored_len: payload.len() as u32,
+                raw_len: if matches!(codec, Codec::Raw) {
+                    payload.len() as u32
+                } else {
+                    0
+                },
+                crc: crc32c(payload),
+                payload_offset: 0,
+            },
+            stored: payload.to_vec(),
+        };
+        // A PIX16 plane carrying an embed codec.
+        let mut g16 = hdr_for(w, h);
+        g16.pixel_format = PixelFormat::Gray16;
+        let hi_bytes = vec![1u8; half];
+        let lo_bytes = vec![2u8; half];
+        let hi = mk_chunk(ChunkType::Pix16Hi, Codec::MnF8, &hi_bytes);
+        let lo = mk_chunk(ChunkType::Pix16Lo, Codec::Raw, &lo_bytes);
+        assert!(decode_pixels(&g16, &[hi, lo]).is_err());
+        // A PIXEL embed under a non-RGB8 header.
+        let mut rgba8 = hdr_for(w, h);
+        rgba8.pixel_format = PixelFormat::Rgba8;
+        let px_payload: &[u8] = b"MNF9\x00\x00\x00\x00";
+        let px = mk_chunk(ChunkType::Pixel, Codec::MnF9, px_payload);
+        assert!(decode_pixels(&rgba8, &[px]).is_err());
     }
 }

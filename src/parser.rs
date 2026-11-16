@@ -140,9 +140,11 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
             return Err(Error::fmt_msg(format!(
                 "mnfx: chunk {i} uses codec 5 outside a pixel layer"
             )));
-            // Codec 4 on non-pixel chunks stays legal: W3 plane chunks
-            // (the grammar-frozen MNF8/zstd/raw vocabulary) use it.
         }
+        // The codec/chunk compatibility matrix (grammar rule 13; W8-A2)
+        // — one shared implementation for parse + serialize_checked; the
+        // decoders keep matching guards for parser-bypassing callers.
+        validate_codec_compatibility(chunk_type, codec, hdr.pixel_format)?;
         // 16-bit plane chunks: exactly one of each, and only under a
         // 16-bit pixel format (grammar rule 10).
         if matches!(chunk_type, ChunkType::Pix16Hi | ChunkType::Pix16Lo) {
@@ -223,6 +225,71 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
     Ok((hdr, chunks))
 }
 
+/// The codec/chunk compatibility matrix (grammar rule 13; W8-A2): the
+/// ONE normative policy, shared by `parse` and `serialize_checked`
+/// (which proves its output with a full parse — no separate rule set to
+/// drift). The decoders keep matching guards for callers that build
+/// [`Chunk`] values without the parser.
+///
+/// ```text
+/// PIXEL layer            raw | zstd; MNF8/MNF9 only with
+///                        pixel_format 1 (RGB8)      (rules 3, 9)
+/// PIX16-HI / PIX16-LO    raw | zstd only            (rule 10)
+/// EXIF/XMP/ICC/CICP/ORNT raw only in v1 — a compressed-metadata
+///                        payload has no decode bound in the grammar
+/// unknown optional       any vocabulary codec (byte preservation,
+///                        skip/rewrite, no interpretation)
+/// unknown critical       rejected before this matrix is consulted
+/// ```
+///
+/// W8-A2 validation tightening: containers that relied on the pre-W8
+/// laxer parse (compressed or embed-coded metadata; plane-chunk embed
+/// codecs; pixel embeds under non-RGB8 headers) now reject at parse.
+pub fn validate_codec_compatibility(
+    chunk_type: ChunkType,
+    codec: Codec,
+    pixel_format: PixelFormat,
+) -> Result<()> {
+    let embed = matches!(codec, Codec::MnF8 | Codec::MnF9);
+    match chunk_type {
+        ChunkType::Pixel => {
+            if embed && pixel_format != PixelFormat::Rgb8 {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: embed codec {} requires pixel_format 1 (RGB8), got {}",
+                    codec as u8, pixel_format as u8
+                )));
+            }
+        }
+        ChunkType::Pix16Hi | ChunkType::Pix16Lo => {
+            if embed {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: {} must not carry an embed codec",
+                    if matches!(chunk_type, ChunkType::Pix16Hi) {
+                        "PIX16-HI"
+                    } else {
+                        "PIX16-LO"
+                    }
+                )));
+            }
+        }
+        ChunkType::Exif
+        | ChunkType::Xmp
+        | ChunkType::Icc
+        | ChunkType::Cicp
+        | ChunkType::Orientation => {
+            if !matches!(codec, Codec::Raw) {
+                return Err(Error::fmt_msg(format!(
+                    "mnfx: metadata chunk type {} must be raw-coded in v1, got codec {}",
+                    chunk_type.raw(),
+                    codec as u8
+                )));
+            }
+        }
+        ChunkType::Unknown(_) => {}
+    }
+    Ok(())
+}
+
 /// Serialize a container from validated parts (W0: raw-coded payloads).
 pub fn serialize(
     header: &ContainerHeader,
@@ -263,6 +330,36 @@ pub fn serialize(
         out.extend_from_slice(payload);
     }
     Ok(out)
+}
+
+/// Serialize from validated parts and then prove the result against
+/// the FULL parse rule set — shape, CRC, and the codec/chunk
+/// compatibility matrix (rule 13). The proof IS a parse: one shared
+/// rule implementation, no drift, at the cost of one validation pass
+/// over the output. Producer-facing writes use this; the unchecked
+/// [`serialize`] remains the builder for lossless-rewrite tooling
+/// carrying already-parsed chunks. One producer-only contract beyond
+/// parse: an ORNT chunk payload must mirror the container header's
+/// orientation field (rule 12 — newly produced containers never
+/// disagree; pre-existing mismatches pass the UNchecked serializer and
+/// stay losslessly rewritable).
+pub fn serialize_checked(
+    header: &ContainerHeader,
+    chunks: &[(ChunkType, Codec, &[u8])],
+) -> Result<Vec<u8>> {
+    for (chunk_type, _codec, payload) in chunks {
+        if matches!(chunk_type, ChunkType::Orientation)
+            && payload.len() == 1
+            && payload[0] != header.orientation
+        {
+            return Err(Error::fmt_msg(format!(
+                "mnfx: ORNT chunk value {} does not mirror the header field {} (rule 12)",
+                payload[0], header.orientation
+            )));
+        }
+    }
+    let out = serialize(header, chunks)?;
+    parse(&out).map(|_| out)
 }
 
 #[cfg(test)]
@@ -426,5 +523,93 @@ mod tests {
         assert_eq!(crc32c(b""), 0x0000_0000);
         assert_eq!(crc32c(b"123456789"), 0xE306_9283);
         assert_eq!(crc32c(&[0u8; 32]), 0x8A91_36AA);
+    }
+
+    // ---- W8-A2: the rule-13 codec/chunk compatibility matrix ----
+
+    #[test]
+    fn metadata_chunks_must_be_raw_coded() {
+        let hdr = ContainerHeader {
+            chunk_count: 2,
+            ..sample_header()
+        };
+        // An EXIF chunk carrying an MNF8 embed: the unchecked builder
+        // emits it; the matrix rejects it at parse. A pre-W8 container
+        // like this PARSED (and the EXIF then failed the shell check at
+        // decode) — the validation correction moves the rejection.
+        let buf = serialize(
+            &hdr,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &rgb_payload()),
+                (ChunkType::Exif, Codec::MnF8, b"MNF8"),
+            ],
+        )
+        .unwrap();
+        assert!(parse(&buf).is_err(), "embed-coded metadata must reject");
+        // A zstd-coded ICC profile: the same correction class (pre-W8
+        // it even "decoded", surfacing zstd bytes as the profile).
+        let hdr2 = ContainerHeader {
+            chunk_count: 2,
+            ..sample_header()
+        };
+        let buf2 = serialize(
+            &hdr2,
+            &[
+                (ChunkType::Pixel, Codec::Raw, &rgb_payload()),
+                (ChunkType::Icc, Codec::Zstd, b"not-a-frame"),
+            ],
+        )
+        .unwrap();
+        assert!(parse(&buf2).is_err(), "zstd-coded metadata must reject");
+    }
+
+    #[test]
+    fn serialize_checked_proves_the_full_rule_set() {
+        let hdr = sample_header();
+        let payload = rgb_payload();
+        let plain = [(ChunkType::Pixel, Codec::Raw, payload.as_slice())];
+        assert_eq!(
+            serialize_checked(&hdr, &plain).unwrap(),
+            serialize(&hdr, &plain).unwrap()
+        );
+        // A shape the unchecked builder accepts but the matrix rejects
+        // (embed-coded metadata): serialize_checked surfaces it via its
+        // parse proof.
+        let hdr2 = ContainerHeader {
+            chunk_count: 2,
+            ..sample_header()
+        };
+        let payload2 = rgb_payload();
+        let bad = [
+            (ChunkType::Pixel, Codec::Raw, payload2.as_slice()),
+            (ChunkType::Exif, Codec::MnF8, b"MNF8"),
+        ];
+        assert!(serialize_checked(&hdr2, &bad).is_err());
+    }
+
+    #[test]
+    fn serialize_checked_requires_ornt_to_mirror_the_header() {
+        // The producer-only contract (rule 12): a NEW container never
+        // carries an ORNT that disagrees with the header field. Parse
+        // still ACCEPTS the mismatch (back-compat; ORNT loses only to
+        // EXIF) — the checked serializer refuses to emit it.
+        let hdr = ContainerHeader {
+            orientation: 2,
+            chunk_count: 2,
+            ..sample_header()
+        };
+        let payload = rgb_payload();
+        let mismatch = [
+            (ChunkType::Pixel, Codec::Raw, payload.as_slice()),
+            (ChunkType::Orientation, Codec::Raw, b"\x06"),
+        ];
+        assert!(parse(&serialize(&hdr, &mismatch).unwrap()).is_ok());
+        assert!(serialize_checked(&hdr, &mismatch).is_err());
+        // header 2 + ORNT 2: parse accepts; the checked serializer agrees.
+        let matching = [
+            (ChunkType::Pixel, Codec::Raw, payload.as_slice()),
+            (ChunkType::Orientation, Codec::Raw, b"\x02"),
+        ];
+        assert!(serialize_checked(&hdr, &matching).is_ok());
     }
 }
