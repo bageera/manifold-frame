@@ -75,6 +75,17 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
   (engine-side decision, queued). Probes: tests/w7a_probe.rs +
   scripts/w7a_bench.py → docs/w7a-results.json +
   docs/w7a-candidate-concurrency.md. Wire untouched.
+- W7-B1 (measurement-only, engine v1.15.0 tree 586370e — the W7-A
+  vintage): the zstd-19 arm's working set is LEVEL-TABLE-driven — it
+  is the level-19 match-table workspace (chainLog 24), not
+  window-driven, not plane-sized, not engine-shared; the only measured
+  material lever is pledging the source size; bounded-window-only is
+  a negative result. The balanced−zstd residual (2,768 KiB of 13,904
+  KiB) stands recorded-unexplained. The engine-side decision (any
+  byte-changing variant needs a NEW backend/profile id) stays queued
+  for the engine's W7-B2/B3. Instruments: tests/w7b1_probe.rs +
+  scripts/w7b1_attribution.py → docs/w7b1-results.json +
+  docs/w7b1-rss-attribution.md. Wire untouched.
 - W6 — Interoperability. W6-A: an out-of-tree consumer repo
   (`/tmp/mnfx-adapter`) builds from the published crates.io crates
   alone (PNG→MNFX→PNG by pixel-plane equality; the adapter lesson:

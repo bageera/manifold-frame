@@ -29,7 +29,10 @@ W6-D highlights: balanced beats PNG-9 on every structured class
 (0.15–0.34) and ties noise; decode 4–8 ms CLI / 1.0–3.4 ms in-memory;
 encode RSS ≈ one zstd-19 arm's working set (~86 MB; mix6 arm 37 MB) —
 W7-A `REJECTED: concurrency as RSS cause`, details in
-`docs/w7a-candidate-concurrency.md`.
+`docs/w7a-candidate-concurrency.md`; W7-B1 attributed that working set
+to the level-19 match-table workspace (chainLog 24; pledged-src-size
+the measured lever, bounded-window a negative —
+`docs/w7b1-rss-attribution.md`).
 
 ## Use
 
