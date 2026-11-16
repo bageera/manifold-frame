@@ -34,9 +34,9 @@
 //! over the 4 kept artifacts.
 
 use manifold::img;
-use zstd::zstd_safe::{CCtx, CParameter};
 use std::io::Write;
 use std::path::PathBuf;
+use zstd::zstd_safe::{CCtx, CParameter};
 
 fn out_dir() -> PathBuf {
     let d = std::env::var_os("W7B1_OUT")
@@ -59,9 +59,7 @@ fn env_or(name: &str, default: u32) -> u32 {
 fn synth_plane(w: u32, h: u32) -> Vec<u8> {
     let n = (w as usize) * (h as usize) * 3;
     let mut v = Vec::with_capacity(n);
-    let mut s: u64 = 0x9e3779b97f4a7c15
-        ^ (u64::from(w) << 32)
-            .wrapping_add(u64::from(h) | 1); // seed never zero
+    let mut s: u64 = 0x9e3779b97f4a7c15 ^ (u64::from(w) << 32).wrapping_add(u64::from(h) | 1); // seed never zero
     for _ in 0..n {
         s ^= s << 13;
         s ^= s >> 7;
@@ -85,9 +83,15 @@ fn identity_tag(b: &[u8]) -> u64 {
 /// takes — so the frames are byte-identical to the engine's
 /// compress_stream zstd arm shape at the same level; the retained CCtx
 /// lets the leg report ZSTD_sizeof_CCtx() at no extra allocation.
-fn zstd_arm(cctx: &mut CCtx<'static>, level: i32, winlog: u32, pledge: bool,
-            data: &[u8]) -> (Vec<u8>, usize) {
-    cctx.set_parameter(CParameter::CompressionLevel(level)).unwrap();
+fn zstd_arm(
+    cctx: &mut CCtx<'static>,
+    level: i32,
+    winlog: u32,
+    pledge: bool,
+    data: &[u8],
+) -> (Vec<u8>, usize) {
+    cctx.set_parameter(CParameter::CompressionLevel(level))
+        .unwrap();
     if winlog != 0 {
         cctx.set_parameter(CParameter::WindowLog(winlog)).unwrap();
     }
