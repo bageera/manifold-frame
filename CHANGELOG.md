@@ -14,6 +14,25 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-B4 — independent artifact consumer (reproducibility; no wire or
+  ABI change): validation moves entirely outside the producer
+  environment. `scripts/b4_consumer_gate.sh` exercises ONLY the
+  downloaded archive as a consumer would: a standalone C consumer
+  compiled against the packaged header + libs (B4.2), the libvips and
+  ImageMagick W6 gates repeated against the packaged ABI in a new
+  `MNFX_CONSUMER_ROOT` consumer mode of their `run.sh` scripts (B4.3/
+  B4.4), relocatability via moving the extracted tree and re-linking
+  (B4.5), the hostile leg through the packaged ABI (B4.6), and a
+  `b4-evidence.json` receipt with the archive-hash + platform + every
+  gate outcome (B4.7). `MNFX_CONSUMER_ROOT` mode never invokes cargo —
+  and the gate's linkage audit fails if a build path or engine tree
+  leaks into any consumer's resolved dependencies (B4.1's teeth). The
+  release workflow gains a `consumer-b4` stage (per required target,
+  deps installed runner-side; evidence uploaded per leg). The publish
+  stage additionally stages a DRAFT release, uploads every asset,
+  re-downloads and byte-verifies them against the manifest, and only
+  then flips the draft public (draft-staged publication; GitHub asset
+  uploads are not transactional).
 - W8-B3 — binary distribution pipeline (reproducibility; no wire or
   ABI change): `workflow_dispatch`-dry-run + `v*`-tag release workflow
   building NATIVE-only archives (the packager hard-refuses a

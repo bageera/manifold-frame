@@ -4,16 +4,30 @@
 # Exact-sample legs (import -> export -> memcmp), a real thumbnail op,
 # PNG export cross-checked at the PIL byte level against the PAM source,
 # and the hostile leg (rc == 1, never a signal).
+#
+# W8-B4 consumer mode: MNFX_CONSUMER_ROOT=<extracted archive dir> links
+# the bridge against the DOWNLOADED library only — no cargo, no engine
+# tree, no build tree. In that mode fixtures come from W6E_FIXTURES
+# (default /tmp/w6e/fixtures); the producer regenerates them.
 set -e
 cd "$(dirname "$0")/../.."
-export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
-export RUSTUP_HOME="$HOME/.rustup"
-D=/tmp/w6e/fixtures
-MNFX_WRITE_FIXTURES=$D cargo test -q -p manifold-frame --test w6e_conformance fixtures_write >/dev/null
-cargo build -q -p manifold-frame-capi --release
-cc -Wall -Wextra -Werror -I capi/include integrations/magick/magickload_mnfx.c \
+if [ -n "${MNFX_CONSUMER_ROOT:-}" ]; then
+  [ -d "$MNFX_CONSUMER_ROOT/lib" ] || { echo "MNFX_CONSUMER_ROOT has no lib/"; exit 2; }
+  D="${W6E_FIXTURES:-/tmp/w6e/fixtures}"
+  INCL="$MNFX_CONSUMER_ROOT/include"
+  LIBDIR="$MNFX_CONSUMER_ROOT/lib"
+else
+  command -v cargo >/dev/null 2>&1 || \
+    export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
+  D=/tmp/w6e/fixtures
+  MNFX_WRITE_FIXTURES=$D cargo test -q -p manifold-frame --test w6e_conformance fixtures_write >/dev/null
+  cargo build -q -p manifold-frame-capi --release
+  INCL=capi/include
+  LIBDIR="$PWD/target/release"
+fi
+cc -Wall -Wextra -Werror -I "$INCL" integrations/magick/magickload_mnfx.c \
    $(pkg-config --cflags MagickCore) \
-   -L target/release -lmanifold_frame_capi -Wl,-rpath,"$PWD/target/release" \
+   -L "$LIBDIR" -lmanifold_frame_capi -Wl,-rpath,"$LIBDIR" \
    $(pkg-config --libs MagickCore) -o /tmp/w6e/magickload
 
 # Hostile leg FIRST (the W6-C crash-polarity property, now on the

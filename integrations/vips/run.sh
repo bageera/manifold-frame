@@ -2,16 +2,30 @@
 # W6-E: libvips loader gate over the published conformance fixtures.
 # The bridge decodes MNFX via the shipped C ABI and asserts in-pipeline
 # pixel equality vs the fixture's PAM source, then runs a thumbnail op.
+#
+# W8-B4 consumer mode: MNFX_CONSUMER_ROOT=<extracted archive dir> links
+# the bridge against the DOWNLOADED library only — no cargo, no engine
+# tree, no build tree. In that mode fixtures come from W6E_FIXTURES
+# (default /tmp/w6e/fixtures); the producer regenerates them.
 set -e
 cd "$(dirname "$0")/../.."
-export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
-export RUSTUP_HOME="$HOME/.rustup"
-D=/tmp/w6e/fixtures
-MNFX_WRITE_FIXTURES=$D cargo test -q -p manifold-frame --test w6e_conformance fixtures_write >/dev/null
-cargo build -q -p manifold-frame-capi --release
-cc -Wall -Wextra -Werror -I capi/include integrations/vips/vipsload_mnfx.c \
+if [ -n "${MNFX_CONSUMER_ROOT:-}" ]; then
+  [ -d "$MNFX_CONSUMER_ROOT/lib" ] || { echo "MNFX_CONSUMER_ROOT has no lib/"; exit 2; }
+  D="${W6E_FIXTURES:-/tmp/w6e/fixtures}"
+  INCL="$MNFX_CONSUMER_ROOT/include"
+  LIBDIR="$MNFX_CONSUMER_ROOT/lib"
+else
+  command -v cargo >/dev/null 2>&1 || \
+    export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
+  D=/tmp/w6e/fixtures
+  MNFX_WRITE_FIXTURES=$D cargo test -q -p manifold-frame --test w6e_conformance fixtures_write >/dev/null
+  cargo build -q -p manifold-frame-capi --release
+  INCL=capi/include
+  LIBDIR="$PWD/target/release"
+fi
+cc -Wall -Wextra -Werror -I "$INCL" integrations/vips/vipsload_mnfx.c \
    $(pkg-config --cflags glib-2.0 gobject-2.0 vips) \
-   -L target/release -lmanifold_frame_capi -Wl,-rpath,"$PWD/target/release" \
+   -L "$LIBDIR" -lmanifold_frame_capi -Wl,-rpath,"$LIBDIR" \
    $(pkg-config --libs gobject-2.0 glib-2.0 vips) -o /tmp/w6e/vipsload
 # The W6-B 8-bit gate: rgb8 + rgba8 fixtures (16-bit is documented out).
 for f in rgb8 rgba8; do /tmp/w6e/vipsload $D/$f.mnfx $D/$f.pam; done

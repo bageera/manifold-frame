@@ -108,6 +108,54 @@ jobs:
           path: fixtures/
       - run: python3 scripts/validate_release.py --archive dist/*.tar.gz --fixtures-dir fixtures/ --expect-arch ${{ matrix.expect_arch }}
 
+  consumer-b4:
+    # W8-B4: validation ENTIRELY outside the producer environment. No
+    # Rust build, no engine tree, no Cargo — the job links every bridge
+    # against the DOWNLOADED archive only, and the linkage audit fails
+    # on any build-path leak (B4.1's teeth). The libvips and ImageMagick
+    # gates repeat their W6 correctness against the packaged ABI.
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            experimental: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            experimental: false
+          - os: macos-13
+            target: x86_64-apple-darwin
+            experimental: true
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    steps:
+      - uses: actions/checkout@v4   # the adapter SOURCES = the application under test
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: w6e-fixtures
+          path: fixtures/
+      - run: mkdir consumer && tar -xzf dist/*.tar.gz -C consumer --strip-components=1
+      - name: Install the consumer-side image stacks (libvips / ImageMagick / Pillow)
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y libvips-dev libmagickcore-dev python3-pil
+          else
+            brew install vips imagemagick
+            python3 -m pip install --quiet --user pillow || \
+              python3 -m pip install --quiet --user --break-system-packages pillow
+          fi
+      - run: bash scripts/b4_consumer_gate.sh --root "$PWD/consumer" --fixtures "$PWD/fixtures" --evidence b4-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: b4-consumer-${{ matrix.target }}
+          path: b4-evidence.json
+
   publish:
     needs: validate
     # Atomic gate: all REQUIRED legs validated (experimental legs like
@@ -148,11 +196,38 @@ jobs:
           PY
           shasum -a 256 dist/*.tar.gz > dist/SHA256SUMS
           cat dist/SHA256SUMS
-      - name: Create the GitHub release (archives + external checksums)
+      - name: Stage a DRAFT release, upload every asset, verify, then publish
+        # GitHub asset uploads are not transactional: the draft is
+        # created first, every required asset + the external checksum
+        # manifest is uploaded and re-downloaded to verify byte identity,
+        # and only THEN is the draft published. A partially-uploaded
+        # state can never appear publicly.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$GITHUB_REF_NAME" --draft \
             --title "manifold-frame $GITHUB_REF_NAME" \
-            --notes "Per-target archives (bin/ include/ lib/ share/, provenance.json, SHA256SUMS) + external SHA256SUMS. Provenance records: wire v1, git commit, rustc/cargo versions, locked engine version + registry checksum, target and runner architecture, shared-library lists. MNFX v1 wire grammar: docs/mnfx-grammar.md." \
-            dist/*.tar.gz dist/SHA256SUMS
+            --notes "Per-target archives (bin/ include/ lib/ share/, provenance.json, SHA256SUMS) + external SHA256SUMS. Provenance records: wire v1, git commit, rustc/cargo versions, locked engine version + registry checksum, target and runner architecture, shared-library lists. MNFX v1 wire grammar: docs/mnfx-grammar.md."
+          gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS
+          mkdir -p /tmp/asset-verify && cd /tmp/asset-verify
+          gh release download "$GITHUB_REF_NAME" --pattern '*.tar.gz' --pattern 'SHA256SUMS'
+          python3 - <<'PY'
+          import hashlib, sys
+          from pathlib import Path
+          want = dict(
+              line.split()[1::-1] for line in  # "sha  name" -> name: sha
+              Path("SHA256SUMS").read_text().splitlines() if line.strip()
+          )
+          local = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in Path(".").glob("*.tar.gz")}
+          if not local:
+              sys.exit("no assets downloaded — upload verification failed")
+          missing = [n for n in want if n not in local]
+          if missing:
+              sys.exit(f"missing uploaded assets: {missing}")
+          bad = [n for n, h in local.items() if h != want[n]]
+          if bad:
+              sys.exit(f"uploaded assets with WRONG bytes: {bad}")
+          print(f"asset upload verified: {len(local)} archives byte-identical to the manifest")
+          PY
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+          echo "release published (draft verified then flipped)"

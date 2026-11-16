@@ -29,6 +29,16 @@ rebuild), `.plane` (canonical decoded-sample truth) and `.pam`
 Run: `integrations/<name>/run.sh` (requires libvips / ImageMagick
 installed for the two bridges; the c-abi gate needs neither).
 
+W8-B4 consumer mode — every `run.sh` accepts
+`MNFX_CONSUMER_ROOT=<extracted release archive>`: the bridge then links
+ONLY against the downloaded archive's `include/` + `lib/` (no cargo, no
+engine tree, no build tree) and fixtures come from `W6E_FIXTURES`. The
+independent-consumer gate `scripts/b4_consumer_gate.sh` ties the whole
+B4 class together (standalone C consumer, both bridges against the
+packaged ABI, relocatability via tree-move re-link, hostile leg, and a
+`b4-evidence.json` receipt); its linkage audit fails on any build-path
+leak, so the packaged library is provably the only MNFX surface.
+
 The same integration logic is exercised out-of-tree by the W6-A..C
 adapter repo (commits 42ae501 / b9d2cdc / df30348) against the
 published crates.io crate; the in-repo copies are the durable,
