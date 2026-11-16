@@ -14,6 +14,29 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-B3 — binary distribution pipeline (reproducibility; no wire or
+  ABI change): `workflow_dispatch`-dry-run + `v*`-tag release workflow
+  building NATIVE-only archives (the packager hard-refuses a
+  cross build and records target and runner architecture separately):
+  Linux x86-64, macOS ARM64, macOS x86-64 (experimental leg — Intel
+  runner retirement drifts; cannot block the required targets).
+  Archive contract: `bin/mnfx`, `include/mnfx.h`,
+  `lib/libmanifold_frame_capi.(dylib|so)` + `.a`,
+  `share/mnfx/{mnfx-grammar.md, capi-README.md}`, LICENSE, README.md,
+  `provenance.json` (every W8-B1 factor + git tag/commit, wire v1,
+  features, and the otool -L / ldd shared-library lists), internal
+  `SHA256SUMS`. macOS dylibs ship with install_name `@rpath`
+  (recorded in provenance). The validator tests the SHIPPED files as a
+  consumer: extraction, internal checksums, architecture matches the
+  label, packaged header symbols vs exports, C consumers linked
+  against BOTH the packaged dynamic and static libraries, six-format
+  conformance through the packaged library, hostile-input controlled
+  error, CLI encode→decode→verify from outside the tree —
+  `scripts/validate_release.py`. Publication is tag-gated and atomic:
+  all required platforms build AND validate before `publish` runs
+  (release notes carry external SHA256SUMS). A dry run of the
+  aarch64-apple-darwin leg passed end to end locally (all ten
+  validator legs).
 - W8-B2 — native macOS CI + MSRV (reproducibility; no wire change):
   CI gains a macOS job — vendoring, provenance (the runner's actual
   architecture is RECORDED, never assumed from `macos-latest`),

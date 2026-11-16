@@ -1,2 +1,3 @@
 /target
+/dist
 capi/tests/c-smoke/crates/*/target/

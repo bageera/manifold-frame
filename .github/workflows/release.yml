@@ -1,0 +1,158 @@
+name: release
+
+# W8-B3: the binary distribution pipeline.
+#
+# Triggers:
+#   - workflow_dispatch (dry run by default): builds, packages, and
+#     VALIDATES the artifacts, then stops — temporary CI artifacts only,
+#     no release is created (use it to verify the pipeline; never cut a
+#     public version tag just to test this workflow).
+#   - push of a v* tag: the full run, ending in a GitHub Release whose
+#     assets are the validated per-target archives + external SHA256SUMS.
+#
+# Publication is ATOMIC at the workflow level: every required platform
+# builds and validates before the publish job can run; a partial
+# platform failure never produces a release that looks complete.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build + validate only; a production publish requires a v* tag)'
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags: ['v*']
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  build:
+    # Native builds ONLY: each leg runs on a runner whose architecture
+    # IS the target (package_release.py hard-refuses a cross build, and
+    # records runner arch separately from the target). Matrix notes:
+    #   - linux-arm64: optional extension, deferred (one matrix row when
+    #     wanted; the script already supports any native triple)
+    #   - linux-i686: CI verification retained, distribution deferred
+    #   - windows: deferred
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            experimental: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            experimental: false
+          - os: macos-13
+            target: x86_64-apple-darwin
+            # Intel runners drift toward retirement; if this leg dies it
+            # must not block the REQUIRED targets' publication.
+            experimental: true
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Vendor the lock-pinned engine into ../manifold
+        run: python3 scripts/vendor_engine.py --into ../manifold
+      - name: Conformance fixtures for the validator (once; artifacts of THIS build)
+        # The validator tests the files we distribute against the same
+        # conformance set the source tree passes — regenerated from this
+        # very checkout, uploaded once.
+        run: MNFX_WRITE_FIXTURES=/tmp/w6e/fixtures cargo test -q --locked -p manifold-frame --test w6e_conformance fixtures_write > /dev/null
+      - name: Package the release archive
+        run: python3 scripts/package_release.py --target ${{ matrix.target }} --git-tag "${{ github.ref_name }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        with:
+          name: w6e-fixtures
+          path: /tmp/w6e/fixtures/
+
+  validate:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            expect_arch: x86_64
+            experimental: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            expect_arch: arm64
+            experimental: false
+          - os: macos-13
+            target: x86_64-apple-darwin
+            expect_arch: x86_64
+            experimental: true
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    steps:
+      - uses: actions/checkout@v4   # abidec.c + the validator itself
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: w6e-fixtures
+          path: fixtures/
+      - run: python3 scripts/validate_release.py --archive dist/*.tar.gz --fixtures-dir fixtures/ --expect-arch ${{ matrix.expect_arch }}
+
+  publish:
+    needs: validate
+    # Atomic gate: all REQUIRED legs validated (experimental legs like
+    # macos-13 report success to dependents even when skipped/failing,
+    # so they can neither create partial-looking releases nor block the
+    # required platforms; a required leg's failure blocks publication).
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist/
+          merge-multiple: true
+      - name: Verify tag ↔ package-version consistency
+        run: |
+          python3 - <<'PY'
+          import glob, json, os, sys, tarfile
+          tag = os.environ['GITHUB_REF_NAME']
+          expected = tag[1:] if tag.startswith('v') else ''
+          seen = set()
+          for a in sorted(glob.glob('dist/*.tar.gz')):
+              with tarfile.open(a) as t:
+                  prov = [m for m in t.getnames() if m.endswith('/provenance.json')]
+                  p = json.load(t.extractfile(prov[0]))
+              ver = p['package_version']
+              if expected and ver != expected:
+                  sys.exit(f"{a}: package {ver} != tag {expected} — refusing to publish")
+              if ver in seen:
+                  sys.exit(f"duplicate package version across archives: {ver}")
+              seen.add(ver)
+              print(f"{a}: package {ver}, target {p['target']}, runner {p['runner_architecture']}, commit {p['git_commit'][:12]}")
+          if not seen:
+              sys.exit("no distributable archives produced")
+          PY
+          shasum -a 256 dist/*.tar.gz > dist/SHA256SUMS
+          cat dist/SHA256SUMS
+      - name: Create the GitHub release (archives + external checksums)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "manifold-frame $GITHUB_REF_NAME" \
+            --notes "Per-target archives (bin/ include/ lib/ share/, provenance.json, SHA256SUMS) + external SHA256SUMS. Provenance records: wire v1, git commit, rustc/cargo versions, locked engine version + registry checksum, target and runner architecture, shared-library lists. MNFX v1 wire grammar: docs/mnfx-grammar.md." \
+            dist/*.tar.gz dist/SHA256SUMS
