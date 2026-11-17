@@ -23,6 +23,7 @@ else
   INCL=capi/include
   LIBDIR="$PWD/target/release"
 fi
+mkdir -p /tmp/w6e   # consumer jobs have no producer fixture dump; the bridge output dir must exist
 cc -Wall -Wextra -Werror -I "$INCL" integrations/vips/vipsload_mnfx.c \
    $(pkg-config --cflags glib-2.0 gobject-2.0 vips) \
    -L "$LIBDIR" -lmanifold_frame_capi -Wl,-rpath,"$LIBDIR" \

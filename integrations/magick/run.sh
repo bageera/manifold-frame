@@ -25,6 +25,7 @@ else
   INCL=capi/include
   LIBDIR="$PWD/target/release"
 fi
+mkdir -p /tmp/w6e   # consumer jobs have no producer fixture dump; the bridge output dir must exist
 cc -Wall -Wextra -Werror -I "$INCL" integrations/magick/magickload_mnfx.c \
    $(pkg-config --cflags MagickCore) \
    -L "$LIBDIR" -lmanifold_frame_capi -Wl,-rpath,"$LIBDIR" \
