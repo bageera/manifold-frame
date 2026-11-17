@@ -37,8 +37,13 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
   and the gate's linkage audit fails if a build path or engine tree
   leaks into any consumer's resolved dependencies (B4.1's teeth). The
   release workflow gains a `consumer-b4` stage (per required target,
-  deps installed runner-side; evidence uploaded per leg). The publish
-  stage additionally stages a DRAFT release, uploads every asset,
+  deps installed runner-side; evidence uploaded per leg). VERIFIED on
+  the runners (dry run 44077695255 at b71e476): B4.1–B4.7 pass on BOTH
+  required platforms — standalone C consumer (six formats), libvips +
+  ImageMagick W6 gates against the packaged ABI with the linkage audit
+  clean, relocatability, hostile leg, `b4-evidence.json` receipts
+  uploaded (`producer_environment_used: false`). The publish stage
+  additionally stages a DRAFT release, uploads every asset,
   re-downloads and byte-verifies them against the manifest, and only
   then flips the draft public (draft-staged publication; GitHub asset
   uploads are not transactional).
@@ -64,7 +69,12 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
   all required platforms build AND validate before `publish` runs
   (release notes carry external SHA256SUMS). A dry run of the
   aarch64-apple-darwin leg passed end to end locally (all ten
-  validator legs).
+  validator legs). VERIFIED on the runners (dry run 44077695255,
+  archives pinned to b71e476): both required platforms build + all ten
+  validator legs pass + artifacts downloadable + publish skipped. The
+  Intel (macos-13) leg is OPT-IN (`include_intel_x86=true`): the
+  retired-label fleet queued 9 h with no runner assigned on the first
+  dry run — recorded as UNAVAILABLE (retryable any time).
 - W8-B2 — native macOS CI + MSRV (reproducibility; no wire change):
   CI gains a macOS job — vendoring, provenance (the runner's actual
   architecture is RECORDED, never assumed from `macos-latest`),
