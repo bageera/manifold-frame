@@ -96,6 +96,9 @@ AUDIT_LINKS() {
       echo "cannot inspect linkage of $bin"; return 1
     fi
   done
+  return 0   # clean audit: with NO leak found, the pre-W8 trailing
+             # grep-failure semantics would (wrongly) return 1 here —
+             # that inversion is why B4.3/B4.4 failed their first CI leg
 }
 
 # ---- B4.3 + B4.4: the application bridges against the packaged ABI ----
