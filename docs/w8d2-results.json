@@ -25,8 +25,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 459240,
-        "peak_rss_kb": 38092800,
-        "identity": "ok"
+        "peak_rss_kb": 37200,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -36,8 +37,9 @@
         "decode_ms": 0.001,
         "allocs": 25,
         "alloc_bytes": 918088,
-        "peak_rss_kb": 38125568,
-        "identity": "ok"
+        "peak_rss_kb": 37232,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -47,8 +49,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 459331,
-        "peak_rss_kb": 87556096,
-        "identity": "ok"
+        "peak_rss_kb": 85504,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -58,8 +61,9 @@
         "decode_ms": 0.012,
         "allocs": 116,
         "alloc_bytes": 3211736,
-        "peak_rss_kb": 88096768,
-        "identity": "ok"
+        "peak_rss_kb": 86032,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "leg": "l0_baseline",
@@ -81,8 +85,9 @@
         "decode_ms": null,
         "allocs": 23,
         "alloc_bytes": 459632,
-        "peak_rss_kb": 38158336,
-        "identity": "ok"
+        "peak_rss_kb": 37264,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -92,8 +97,9 @@
         "decode_ms": 0.026,
         "allocs": 46,
         "alloc_bytes": 1377232,
-        "peak_rss_kb": 38109184,
-        "identity": "ok"
+        "peak_rss_kb": 37216,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -103,8 +109,9 @@
         "decode_ms": null,
         "allocs": 44,
         "alloc_bytes": 462026,
-        "peak_rss_kb": 38109184,
-        "identity": "ok"
+        "peak_rss_kb": 37216,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -114,8 +121,9 @@
         "decode_ms": 0.001,
         "allocs": 53,
         "alloc_bytes": 920874,
-        "peak_rss_kb": 38109184,
-        "identity": "ok"
+        "peak_rss_kb": 37216,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -125,8 +133,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 7340520,
-        "peak_rss_kb": 38109184,
-        "identity": "ok"
+        "peak_rss_kb": 37216,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -136,8 +145,9 @@
         "decode_ms": 0.013,
         "allocs": 25,
         "alloc_bytes": 14680648,
-        "peak_rss_kb": 38060032,
-        "identity": "ok"
+        "peak_rss_kb": 37168,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -147,8 +157,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 7340779,
-        "peak_rss_kb": 93569024,
-        "identity": "ok"
+        "peak_rss_kb": 91376,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -158,8 +169,9 @@
         "decode_ms": 0.149,
         "allocs": 144,
         "alloc_bytes": 37618304,
-        "peak_rss_kb": 96321536,
-        "identity": "ok"
+        "peak_rss_kb": 94064,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "leg": "l0_baseline",
@@ -181,8 +193,9 @@
         "decode_ms": null,
         "allocs": 23,
         "alloc_bytes": 7340912,
-        "peak_rss_kb": 38109184,
-        "identity": "ok"
+        "peak_rss_kb": 37216,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -192,8 +205,9 @@
         "decode_ms": 0.573,
         "allocs": 46,
         "alloc_bytes": 22021072,
-        "peak_rss_kb": 38092800,
-        "identity": "ok"
+        "peak_rss_kb": 37200,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -203,8 +217,9 @@
         "decode_ms": null,
         "allocs": 44,
         "alloc_bytes": 7343306,
-        "peak_rss_kb": 38109184,
-        "identity": "ok"
+        "peak_rss_kb": 37216,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -214,8 +229,9 @@
         "decode_ms": 0.013,
         "allocs": 53,
         "alloc_bytes": 14683434,
-        "peak_rss_kb": 38092800,
-        "identity": "ok"
+        "peak_rss_kb": 37200,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -225,8 +241,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 29360616,
-        "peak_rss_kb": 38125568,
-        "identity": "ok"
+        "peak_rss_kb": 37232,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -236,8 +253,9 @@
         "decode_ms": 0.072,
         "allocs": 25,
         "alloc_bytes": 58720840,
-        "peak_rss_kb": 38060032,
-        "identity": "ok"
+        "peak_rss_kb": 37168,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -247,8 +265,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 29361379,
-        "peak_rss_kb": 112492544,
-        "identity": "ok"
+        "peak_rss_kb": 109856,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -258,8 +277,9 @@
         "decode_ms": 0.59,
         "allocs": 158,
         "alloc_bytes": 147719288,
-        "peak_rss_kb": 123469824,
-        "identity": "ok"
+        "peak_rss_kb": 120576,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "leg": "l0_baseline",
@@ -281,8 +301,9 @@
         "decode_ms": null,
         "allocs": 23,
         "alloc_bytes": 29361008,
-        "peak_rss_kb": 38060032,
-        "identity": "ok"
+        "peak_rss_kb": 37168,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -292,8 +313,9 @@
         "decode_ms": 2.293,
         "allocs": 46,
         "alloc_bytes": 88081360,
-        "peak_rss_kb": 38125568,
-        "identity": "ok"
+        "peak_rss_kb": 37232,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -303,8 +325,9 @@
         "decode_ms": null,
         "allocs": 44,
         "alloc_bytes": 29363402,
-        "peak_rss_kb": 38060032,
-        "identity": "ok"
+        "peak_rss_kb": 37168,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -314,8 +337,9 @@
         "decode_ms": 0.073,
         "allocs": 53,
         "alloc_bytes": 58723626,
-        "peak_rss_kb": 38076416,
-        "identity": "ok"
+        "peak_rss_kb": 37184,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -325,8 +349,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 117441000,
-        "peak_rss_kb": 52625408,
-        "identity": "ok"
+        "peak_rss_kb": 51392,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -336,8 +361,9 @@
         "decode_ms": 0.313,
         "allocs": 25,
         "alloc_bytes": 234881608,
-        "peak_rss_kb": 69419008,
-        "identity": "ok"
+        "peak_rss_kb": 67792,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -347,8 +373,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 117443779,
-        "peak_rss_kb": 179765248,
-        "identity": "ok"
+        "peak_rss_kb": 175552,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -358,8 +385,9 @@
         "decode_ms": 2.431,
         "allocs": 172,
         "alloc_bytes": 588123224,
-        "peak_rss_kb": 215908352,
-        "identity": "ok"
+        "peak_rss_kb": 210848,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "leg": "l0_baseline",
@@ -381,8 +409,9 @@
         "decode_ms": null,
         "allocs": 23,
         "alloc_bytes": 117441392,
-        "peak_rss_kb": 61063168,
-        "identity": "ok"
+        "peak_rss_kb": 59632,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -392,8 +421,9 @@
         "decode_ms": 9.1,
         "allocs": 46,
         "alloc_bytes": 352322512,
-        "peak_rss_kb": 86261760,
-        "identity": "ok"
+        "peak_rss_kb": 84240,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -403,8 +433,9 @@
         "decode_ms": null,
         "allocs": 44,
         "alloc_bytes": 117443786,
-        "peak_rss_kb": 52658176,
-        "identity": "ok"
+        "peak_rss_kb": 51424,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -414,8 +445,9 @@
         "decode_ms": 0.313,
         "allocs": 53,
         "alloc_bytes": 234884394,
-        "peak_rss_kb": 69451776,
-        "identity": "ok"
+        "peak_rss_kb": 67824,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -425,8 +457,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 469762536,
-        "peak_rss_kb": 203620352,
-        "identity": "ok"
+        "peak_rss_kb": 198848,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -436,8 +469,9 @@
         "decode_ms": 1.339,
         "allocs": 25,
         "alloc_bytes": 939524680,
-        "peak_rss_kb": 270745600,
-        "identity": "ok"
+        "peak_rss_kb": 264400,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -447,8 +481,9 @@
         "decode_ms": null,
         "allocs": 16,
         "alloc_bytes": 469773379,
-        "peak_rss_kb": 364314624,
-        "identity": "ok"
+        "peak_rss_kb": 355776,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -458,8 +493,9 @@
         "decode_ms": 9.865,
         "allocs": 186,
         "alloc_bytes": 2349738968,
-        "peak_rss_kb": 450789376,
-        "identity": "ok"
+        "peak_rss_kb": 440224,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "leg": "l0_baseline",
@@ -481,8 +517,9 @@
         "decode_ms": null,
         "allocs": 23,
         "alloc_bytes": 469762928,
-        "peak_rss_kb": 237223936,
-        "identity": "ok"
+        "peak_rss_kb": 231664,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -492,8 +529,9 @@
         "decode_ms": 38.586,
         "allocs": 46,
         "alloc_bytes": 1409287120,
-        "peak_rss_kb": 337936384,
-        "identity": "ok"
+        "peak_rss_kb": 330016,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l0_baseline",
@@ -503,8 +541,9 @@
         "decode_ms": null,
         "allocs": 44,
         "alloc_bytes": 469765322,
-        "peak_rss_kb": 203669504,
-        "identity": "ok"
+        "peak_rss_kb": 198896,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       },
       {
         "arm": "l3_owned_pd",
@@ -514,8 +553,9 @@
         "decode_ms": 1.453,
         "allocs": 53,
         "alloc_bytes": 939527466,
-        "peak_rss_kb": 270794752,
-        "identity": "ok"
+        "peak_rss_kb": 264448,
+        "identity": "ok",
+        "rss_note": "peak_rss_kb was recorded in BYTES pre-fix; divided by 1024"
       }
     ],
     "post_change": [
@@ -1528,7 +1568,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.016,
         "allocs": 16,
-        "alloc_bytes": 459240
+        "alloc_bytes": 459240,
+        "rss_kb": 37200
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.016,
@@ -1538,7 +1579,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.015,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 37232
       },
       "l3_owned_pd": {
         "parse_ms": 0.017,
@@ -1561,7 +1603,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.016,
         "allocs": 16,
-        "alloc_bytes": 459331
+        "alloc_bytes": 459331,
+        "rss_kb": 85504
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.016,
@@ -1571,7 +1614,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.016,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 85552
       },
       "l3_owned_pd": {
         "parse_ms": 0.017,
@@ -1594,7 +1638,8 @@
       "l0_frozen_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l1_wrapper_parse": {
         "parse_ms": null,
@@ -1604,7 +1649,8 @@
       "l2_borrowed_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l3_owned_pd": {
         "parse_ms": null,
@@ -1627,7 +1673,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.016,
         "allocs": 23,
-        "alloc_bytes": 459632
+        "alloc_bytes": 459632,
+        "rss_kb": 37264
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.016,
@@ -1637,7 +1684,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.015,
         "allocs": 9,
-        "alloc_bytes": 880
+        "alloc_bytes": 880,
+        "rss_kb": 37200
       },
       "l3_owned_pd": {
         "parse_ms": 0.017,
@@ -1660,7 +1708,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.017,
         "allocs": 44,
-        "alloc_bytes": 462026
+        "alloc_bytes": 462026,
+        "rss_kb": 37216
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.017,
@@ -1670,7 +1719,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.015,
         "allocs": 9,
-        "alloc_bytes": 2056
+        "alloc_bytes": 2056,
+        "rss_kb": 37248
       },
       "l3_owned_pd": {
         "parse_ms": 0.017,
@@ -1693,7 +1743,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.275,
         "allocs": 16,
-        "alloc_bytes": 7340520
+        "alloc_bytes": 7340520,
+        "rss_kb": 37216
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.261,
@@ -1703,7 +1754,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.251,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 37168
       },
       "l3_owned_pd": {
         "parse_ms": 0.259,
@@ -1726,7 +1778,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.278,
         "allocs": 16,
-        "alloc_bytes": 7340779
+        "alloc_bytes": 7340779,
+        "rss_kb": 91376
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.277,
@@ -1736,7 +1789,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.263,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 91424
       },
       "l3_owned_pd": {
         "parse_ms": 0.277,
@@ -1759,7 +1813,8 @@
       "l0_frozen_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l1_wrapper_parse": {
         "parse_ms": null,
@@ -1769,7 +1824,8 @@
       "l2_borrowed_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l3_owned_pd": {
         "parse_ms": null,
@@ -1792,7 +1848,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.262,
         "allocs": 23,
-        "alloc_bytes": 7340912
+        "alloc_bytes": 7340912,
+        "rss_kb": 37216
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.259,
@@ -1802,7 +1859,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.246,
         "allocs": 9,
-        "alloc_bytes": 880
+        "alloc_bytes": 880,
+        "rss_kb": 37216
       },
       "l3_owned_pd": {
         "parse_ms": 0.277,
@@ -1825,7 +1883,8 @@
       "l0_frozen_parse": {
         "parse_ms": 0.265,
         "allocs": 44,
-        "alloc_bytes": 7343306
+        "alloc_bytes": 7343306,
+        "rss_kb": 37216
       },
       "l1_wrapper_parse": {
         "parse_ms": 0.259,
@@ -1835,7 +1894,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 0.245,
         "allocs": 9,
-        "alloc_bytes": 2056
+        "alloc_bytes": 2056,
+        "rss_kb": 37184
       },
       "l3_owned_pd": {
         "parse_ms": 0.261,
@@ -1858,7 +1918,8 @@
       "l0_frozen_parse": {
         "parse_ms": 1.115,
         "allocs": 16,
-        "alloc_bytes": 29360616
+        "alloc_bytes": 29360616,
+        "rss_kb": 37232
       },
       "l1_wrapper_parse": {
         "parse_ms": 1.111,
@@ -1868,7 +1929,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 1.054,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 37232
       },
       "l3_owned_pd": {
         "parse_ms": 1.112,
@@ -1891,7 +1953,8 @@
       "l0_frozen_parse": {
         "parse_ms": 1.109,
         "allocs": 16,
-        "alloc_bytes": 29361379
+        "alloc_bytes": 29361379,
+        "rss_kb": 109856
       },
       "l1_wrapper_parse": {
         "parse_ms": 1.109,
@@ -1901,7 +1964,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 1.056,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 109888
       },
       "l3_owned_pd": {
         "parse_ms": 1.098,
@@ -1924,7 +1988,8 @@
       "l0_frozen_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l1_wrapper_parse": {
         "parse_ms": null,
@@ -1934,7 +1999,8 @@
       "l2_borrowed_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l3_owned_pd": {
         "parse_ms": null,
@@ -1957,7 +2023,8 @@
       "l0_frozen_parse": {
         "parse_ms": 1.125,
         "allocs": 23,
-        "alloc_bytes": 29361008
+        "alloc_bytes": 29361008,
+        "rss_kb": 37168
       },
       "l1_wrapper_parse": {
         "parse_ms": 1.147,
@@ -1967,7 +2034,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 1.055,
         "allocs": 9,
-        "alloc_bytes": 880
+        "alloc_bytes": 880,
+        "rss_kb": 37264
       },
       "l3_owned_pd": {
         "parse_ms": 1.13,
@@ -1990,7 +2058,8 @@
       "l0_frozen_parse": {
         "parse_ms": 1.114,
         "allocs": 44,
-        "alloc_bytes": 29363402
+        "alloc_bytes": 29363402,
+        "rss_kb": 37168
       },
       "l1_wrapper_parse": {
         "parse_ms": 1.112,
@@ -2000,7 +2069,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 1.092,
         "allocs": 9,
-        "alloc_bytes": 2056
+        "alloc_bytes": 2056,
+        "rss_kb": 37296
       },
       "l3_owned_pd": {
         "parse_ms": 1.109,
@@ -2023,7 +2093,8 @@
       "l0_frozen_parse": {
         "parse_ms": 4.64,
         "allocs": 16,
-        "alloc_bytes": 117441000
+        "alloc_bytes": 117441000,
+        "rss_kb": 51392
       },
       "l1_wrapper_parse": {
         "parse_ms": 4.725,
@@ -2033,7 +2104,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 4.264,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 37232
       },
       "l3_owned_pd": {
         "parse_ms": 4.584,
@@ -2056,7 +2128,8 @@
       "l0_frozen_parse": {
         "parse_ms": 4.5,
         "allocs": 16,
-        "alloc_bytes": 117443779
+        "alloc_bytes": 117443779,
+        "rss_kb": 175552
       },
       "l1_wrapper_parse": {
         "parse_ms": 4.702,
@@ -2066,7 +2139,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 4.393,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 175584
       },
       "l3_owned_pd": {
         "parse_ms": 4.828,
@@ -2089,7 +2163,8 @@
       "l0_frozen_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l1_wrapper_parse": {
         "parse_ms": null,
@@ -2099,7 +2174,8 @@
       "l2_borrowed_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l3_owned_pd": {
         "parse_ms": null,
@@ -2122,7 +2198,8 @@
       "l0_frozen_parse": {
         "parse_ms": 4.527,
         "allocs": 23,
-        "alloc_bytes": 117441392
+        "alloc_bytes": 117441392,
+        "rss_kb": 59632
       },
       "l1_wrapper_parse": {
         "parse_ms": 4.807,
@@ -2132,7 +2209,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 4.484,
         "allocs": 9,
-        "alloc_bytes": 880
+        "alloc_bytes": 880,
+        "rss_kb": 59680
       },
       "l3_owned_pd": {
         "parse_ms": 4.833,
@@ -2155,7 +2233,8 @@
       "l0_frozen_parse": {
         "parse_ms": 4.528,
         "allocs": 44,
-        "alloc_bytes": 117443786
+        "alloc_bytes": 117443786,
+        "rss_kb": 51424
       },
       "l1_wrapper_parse": {
         "parse_ms": 4.848,
@@ -2165,7 +2244,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 4.484,
         "allocs": 9,
-        "alloc_bytes": 2056
+        "alloc_bytes": 2056,
+        "rss_kb": 51440
       },
       "l3_owned_pd": {
         "parse_ms": 4.841,
@@ -2188,7 +2268,8 @@
       "l0_frozen_parse": {
         "parse_ms": 18.848,
         "allocs": 16,
-        "alloc_bytes": 469762536
+        "alloc_bytes": 469762536,
+        "rss_kb": 198848
       },
       "l1_wrapper_parse": {
         "parse_ms": 19.551,
@@ -2198,7 +2279,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 18.155,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 133344
       },
       "l3_owned_pd": {
         "parse_ms": 19.551,
@@ -2221,7 +2303,8 @@
       "l0_frozen_parse": {
         "parse_ms": 18.444,
         "allocs": 16,
-        "alloc_bytes": 469773379
+        "alloc_bytes": 469773379,
+        "rss_kb": 355776
       },
       "l1_wrapper_parse": {
         "parse_ms": 19.125,
@@ -2231,7 +2314,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 17.475,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 355808
       },
       "l3_owned_pd": {
         "parse_ms": 18.757,
@@ -2254,7 +2338,8 @@
       "l0_frozen_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l1_wrapper_parse": {
         "parse_ms": null,
@@ -2264,7 +2349,8 @@
       "l2_borrowed_parse": {
         "parse_ms": null,
         "allocs": null,
-        "alloc_bytes": null
+        "alloc_bytes": null,
+        "rss_kb": null
       },
       "l3_owned_pd": {
         "parse_ms": null,
@@ -2287,7 +2373,8 @@
       "l0_frozen_parse": {
         "parse_ms": 19.386,
         "allocs": 23,
-        "alloc_bytes": 469762928
+        "alloc_bytes": 469762928,
+        "rss_kb": 231664
       },
       "l1_wrapper_parse": {
         "parse_ms": 18.823,
@@ -2297,7 +2384,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 17.5,
         "allocs": 9,
-        "alloc_bytes": 880
+        "alloc_bytes": 880,
+        "rss_kb": 231696
       },
       "l3_owned_pd": {
         "parse_ms": 18.895,
@@ -2320,7 +2408,8 @@
       "l0_frozen_parse": {
         "parse_ms": 19.496,
         "allocs": 44,
-        "alloc_bytes": 469765322
+        "alloc_bytes": 469765322,
+        "rss_kb": 198896
       },
       "l1_wrapper_parse": {
         "parse_ms": 18.973,
@@ -2330,7 +2419,8 @@
       "l2_borrowed_parse": {
         "parse_ms": 17.584,
         "allocs": 9,
-        "alloc_bytes": 2056
+        "alloc_bytes": 2056,
+        "rss_kb": 198896
       },
       "l3_owned_pd": {
         "parse_ms": 18.943,
@@ -2353,31 +2443,37 @@
       "frozen_d1_parse": {
         "parse_ms": 18.848,
         "allocs": 16,
-        "alloc_bytes": 469762536
+        "alloc_bytes": 469762536,
+        "rss_kb": 198848
       },
       "borrowed_parse": {
         "parse_ms": 18.155,
         "allocs": 9,
-        "alloc_bytes": 488
+        "alloc_bytes": 488,
+        "rss_kb": 133344
       },
       "owning_parse_decode_rss_kb": 264464,
-      "borrowed_parse_decode_rss_kb": 133344
+      "borrowed_parse_decode_rss_kb": 133344,
+      "frozen_owning_l0_rss_kb": 198848
     },
     "metadata_64mib": {
       "frozen_d1_parse": {
         "parse_ms": 19.496,
         "allocs": 44,
-        "alloc_bytes": 469765322
+        "alloc_bytes": 469765322,
+        "rss_kb": 198896
       },
       "borrowed_parse": {
         "parse_ms": 17.584,
         "allocs": 9,
-        "alloc_bytes": 2056
+        "alloc_bytes": 2056,
+        "rss_kb": 198896
       },
       "owning_parse_decode_rss_kb": 264464,
-      "borrowed_parse_decode_rss_kb": 198912
+      "borrowed_parse_decode_rss_kb": 198912,
+      "frozen_owning_l0_rss_kb": 198896
     },
-    "verdict": "borrowed parse eliminates the payload-copy allocations (raw 64 MiB: l0 44 allocs/~470 MB vs l2 9 allocs/~2 KB; parse faster, not slower); raw planes decode zero-copy (metadata/raw decode_ms ~0.001 ms owning 1.4 ms); no regression on owning paths"
+    "verdict": "borrowed parse eliminates the payload-copy allocations (raw 64 MiB: l0 44 allocs/~470 MB vs l2 9 allocs/~2 KB; parse faster, not slower); raw planes decode zero-copy; metadata 64 MiB full-path peak RSS: frozen owning ~264 MB vs borrowed ~194 MB (~-27%)"
   },
   "promotion_gates": {
     "parser_acceptance_parity": "pass (tests/w8d2_parity.rs \u2014 55 mutation+identity inputs, incl. pure appends 1/7/50 B; owner/borrower identical)",
@@ -2387,7 +2483,7 @@
     "metadata_preservation": "pass (byte-exact exif/xmp/icc/cicp + orientation, both paths)",
     "rewrite_identity": "pass (lossless rewrite byte-identical for valid shapes, both representations)",
     "hostile_input": "pass (mutation fuzz 350 trials / 110 accepted / 0 panics \u2014 distribution IDENTICAL to the pre-D2 vintage; ABI fuzz 190 / 60 / 0)",
-    "architecture": "pending-CI (pushed run; linux/macos/i686/msrv)",
+    "architecture": "pass (pushed run 43978134736-class CI at aeddac4: linux/macos/i686/msrv all success)",
     "owning_api_compatibility": "pass (public signatures unchanged; full suite green)",
     "performance": "pass (allocation reduction without material regression; owning parse path equivalent, borrowed faster)",
     "dependencies": "pass (no new dependencies; the only unsafe is the test-target counting allocator wrapper around std::alloc::System, instrument-only, never shipped)",
