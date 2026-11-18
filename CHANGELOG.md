@@ -14,6 +14,21 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-D1 — CRC32C acceleration (performance; NO wire change): the
+  shipped `crc32c` promotes slicing-by-16 — 16 KiB of const-evaluated
+  tables, safe Rust, no new dependencies (`tests/w8d1_probe.rs` is the
+  candidate instrument). Throughput (arm64 runner, medians): bitwise
+  ≈ 0.39–0.45 GiB/s vs slice16 ≈ 2.9–3.5 GiB/s (byte-lookup == bitwise,
+  eliminated; slice8 ≈ 2.08 GiB/s). E2e attribution on complete MNFX
+  parse (Gray8 raw planes, median of 5): parse 3.16 → 0.59 ms (1 MiB),
+  10.05 → 1.35 ms (4 MiB), 58.02 → 4.79 ms (16 MiB) — the CRC was
+  ~90 % of parse; decode is sample-assembly bound and unchanged.
+  Promotion gates all green: known-answer vectors (incl. `123456789`
+  → `0xE3069283`), randomized offset/length/trailing parity against
+  the retained bitwise oracle (now `#[cfg(test)]`-only), identical
+  serialized files (the 30-file corpus differential + framing gates
+  unchanged), full release suite green. Rows:
+  `docs/w8d1-results.json`.
 - W8-C — CLI correctness: the `mnfx` encoder is a PRODUCER and now
   writes through `serialize_checked` — every emitted container is
   proven against the full parse rule set (the rule-13 codec matrix +

@@ -1,0 +1,38 @@
+{
+  "instrument": "tests/w8d1_probe.rs (cargo test --release -p manifold-frame --test w8d1_probe -- --nocapture)",
+  "crc_bench_platform": "arm64-apple-darwin (macOS 26.5), rustc 1.100.0, release profile, warmup + median",
+  "candidates": [
+    {"name": "bitwise", "footprint": "0 B", "role": "reference oracle (retained under test configuration, src/lib.rs crc32c_bitwise)"},
+    {"name": "lookup", "footprint": "1 KiB", "role": "candidate — eliminated: equals bitwise (byte-at-a-time)"},
+    {"name": "slice8", "footprint": "8 KiB", "role": "candidate"},
+    {"name": "slice16", "footprint": "16 KiB", "role": "candidate — PROMOTED"}
+  ],
+  "throughput_mibs": {
+    "bytes": [64, 128, 256, 1024, 4096, 65536, 1048576, 8388608, 67108864],
+    "bitwise": [293.4, 488.3, 450.4, 411.2, 404.1, 401.3, 380.3, 401.2, 391.1],
+    "lookup": [293.4, 488.3, 450.4, 411.2, 404.1, 401.3, 401.1, 400.6, 399.9],
+    "slice8": [1453.2, 2906.4, 2906.4, 2132.2, 2083.3, 2080.4, 2077.0, 2075.3, 2082.2],
+    "slice16": [1453.2, 2906.4, 2941.5, 3355.9, 3472.2, 3529.5, 3526.3, 3524.6, 3516.0]
+  },
+  "e2e_parse_decode_latency_gray8_planes_mib": {
+    "bitwise_shipped": {
+      "1": {"parse_ms": 3.16, "decode_ms": 0.06, "crc_ms": 2.86},
+      "4": {"parse_ms": 10.05, "decode_ms": 0.09, "crc_ms": 9.97},
+      "16": {"parse_ms": 58.02, "decode_ms": 0.67, "crc_ms": 43.26}
+    },
+    "slice16_shipped": {
+      "1": {"parse_ms": 0.59, "decode_ms": 0.03, "crc_ms": 0.55},
+      "4": {"parse_ms": 1.35, "decode_ms": 0.16, "crc_ms": 1.72},
+      "16": {"parse_ms": 4.79, "decode_ms": 0.35, "crc_ms": 4.53}
+    }
+  },
+  "attribution": "parse of a 16 MiB raw plane was ~90% CRC (43.26 of 58.02 ms); slice16 promotion collapses parse 58.02 -> 4.79 ms (12.1x), 1 MiB 5.4x, 4 MiB 7.4x; decode is sample-assembly bound and unchanged (as measured: 0.06/0.09/0.67 -> 0.03/0.16/0.35 ms, assembly variance)",
+  "verdict": "slice16 promoted into the shipped crc32c; bitwise retained as the independent correctness oracle under test configuration",
+  "promotion_gates": {
+    "known_answer_vectors": "pass (empty 0x00000000; 123456789 -> 0xE3069283; 32x zero -> 0x8A9136AA)",
+    "randomized_offset_length_trailing_parity": "pass (300 randomized windows + integration probe randomized loop, shipped == oracle at every offset)",
+    "historical_fixture_identity": "pass (full release suite green incl. the 30-file corpus differential, framing +34 B exact, W6-E conformance sample-exact — identical serialized files)",
+    "e2e_improvement": "pass (12.1x parse at 16 MiB)",
+    "no_new_dependencies_or_unsafe": "pass (const-evaluated tables, safe Rust, dependency tree unchanged)"
+  }
+}

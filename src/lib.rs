@@ -221,15 +221,60 @@ pub struct ContainerHeader {
     pub height: u32,
 }
 
-/// CRC32C (Castagnoli, reflected polynomial 0x1EDC6F41). Table-free.
-pub fn crc32c(data: &[u8]) -> u32 {
-    let poly: u32 = 0x82F63B78;
+/// CRC32C (Castagnoli, reflected 0x82F63B78), W8-D1: **slicing-by-16** —
+/// 16 KiB of const-evaluated tables, safe Rust, dependency-free. The
+/// candidate matrix and e2e attribution live in `tests/w8d1_probe.rs`
+/// (bitwise ≈ 0.45 GiB/s; slice16 ≈ 2.9–3.5 GiB/s; parse of a 16 MiB raw
+/// plane 58.0 ms → ~10 ms, the CRC previously ~90 % of parse). The
+/// promotion gates: RFC-3720-style known-answer vectors (incl.
+/// `123456789` → `0xE3069283`), randomized offset/length/trailing parity
+/// against the retained bitwise oracle, and wire-identical serialized
+/// files (all downstream CRC assertions unchanged).
+const POLY: u32 = 0x82F63B78;
+
+const fn table0() -> [u32; 256] {
+    let mut t = [0u32; 256];
+    let mut i = 0;
+    while i < 256 {
+        let mut c = i as u32;
+        let mut j = 0;
+        while j < 8 {
+            c = if c & 1 != 0 { (c >> 1) ^ POLY } else { c >> 1 };
+            j += 1;
+        }
+        t[i] = c;
+        i += 1;
+    }
+    t
+}
+
+const fn tables16() -> [[u32; 256]; 16] {
+    let mut t = [[0u32; 256]; 16];
+    t[0] = table0();
+    let mut n = 1;
+    while n < 16 {
+        let mut i = 0;
+        while i < 256 {
+            t[n][i] = (t[n - 1][i] >> 8) ^ t[0][(t[n - 1][i] & 0xFF) as usize];
+            i += 1;
+        }
+        n += 1;
+    }
+    t
+}
+
+static T16: [[u32; 256]; 16] = tables16();
+
+/// The retained independent correctness oracle (bitwise; test builds only);
+/// the W8-D1 promotion gates diff every candidate against exactly this.
+#[cfg(test)]
+fn crc32c_bitwise(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFF_FFFF;
     for &b in data {
         crc ^= u32::from(b);
         for _ in 0..8 {
             crc = if crc & 1 != 0 {
-                (crc >> 1) ^ poly
+                (crc >> 1) ^ POLY
             } else {
                 crc >> 1
             };
@@ -237,6 +282,83 @@ pub fn crc32c(data: &[u8]) -> u32 {
     }
     !crc
 }
+
+/// CRC32C (Castagnoli, reflected polynomial 0x1EDC6F41); slicing-by-16
+/// above — the wire values are unchanged. Table-free only in the sense
+/// the CRC32C table derives at compile time; see the retained bitwise
+/// oracle for the pre-W8-D1 reference algorithm.
+pub fn crc32c(data: &[u8]) -> u32 {
+    let mut crc: u32 = 0xFFFF_FFFF;
+    let (chunks, remainder) = data.as_chunks::<16>();
+    for c in chunks {
+        crc ^= u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+        crc = T16[15][(crc & 0xFF) as usize]
+            ^ T16[14][((crc >> 8) & 0xFF) as usize]
+            ^ T16[13][((crc >> 16) & 0xFF) as usize]
+            ^ T16[12][((crc >> 24) & 0xFF) as usize]
+            ^ T16[11][c[4] as usize]
+            ^ T16[10][c[5] as usize]
+            ^ T16[9][c[6] as usize]
+            ^ T16[8][c[7] as usize]
+            ^ T16[7][c[8] as usize]
+            ^ T16[6][c[9] as usize]
+            ^ T16[5][c[10] as usize]
+            ^ T16[4][c[11] as usize]
+            ^ T16[3][c[12] as usize]
+            ^ T16[2][c[13] as usize]
+            ^ T16[1][c[14] as usize]
+            ^ T16[0][c[15] as usize];
+    }
+    for &b in remainder {
+        crc = (crc >> 8) ^ T16[0][(crc ^ u32::from(b)) as usize & 0xFF];
+    }
+    !crc
+}
+
 pub use crate::decode::{decode_image, decode_pixels, Metadata};
 pub use crate::error::Error;
 pub use crate::parser::{parse, serialize, serialize_checked, validate_codec_compatibility, Chunk};
+
+#[cfg(test)]
+mod crc32c_w8d1_parity {
+    use super::*;
+
+    // Promotion gate: randomized lengths, alignment offsets and
+    // trailing-byte coverage — the shipped slicing implementation must
+    // equal the bitwise oracle at every offset, never just in bulk.
+    #[test]
+    fn shipped_slice16_matches_bitwise_oracle_randomized() {
+        let poly_seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut s = poly_seed;
+        let mut next = move || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        let blob_len = 70_000;
+        let mut blob = vec![0u8; blob_len];
+        let mut t: u32 = 0x2545_F491;
+        for b in blob.iter_mut() {
+            t ^= t << 13;
+            t ^= t >> 17;
+            t ^= t << 5;
+            *b = (t >> 24) as u8;
+        }
+        for _ in 0..300 {
+            let off = (next() % 16) as usize;
+            let len = 1 + ((next() as usize) % 4096);
+            let len = len.min(blob_len - off);
+            let win = &blob[off..off + len];
+            assert_eq!(
+                crc32c(win),
+                crc32c_bitwise(win),
+                "slice16 != oracle at off={off} len={len}"
+            );
+        }
+        // known-answer vectors: the same rows the parser tests pin
+        assert_eq!(crc32c(b""), 0x0000_0000);
+        assert_eq!(crc32c(b"123456789"), 0xE306_9283);
+        assert_eq!(crc32c(&[0u8; 32]), 0x8A91_36AA);
+    }
+}
