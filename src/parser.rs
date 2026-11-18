@@ -2,6 +2,43 @@ use crate::error::{Error, Result};
 use crate::*;
 
 /// Validate the container header; return it and the offset just past it.
+/// A parsed chunk whose payload BORROWS the input buffer (W8-D2): the
+/// borrowed representation of [`Chunk`] — same header surface, no
+/// stored-payload copy. The borrowed form is the fundamental parse
+/// product; [`parse`] materializes it.
+///
+/// The D2.4 allocation proof lives in `tests/w8d2_parity.rs`: every
+/// borrowed reference is asserted to point inside the input buffer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorrowedChunk<'a> {
+    /// The parsed header.
+    pub header: ChunkHeader,
+    /// The CRC-validated stored payload, borrowed from the input.
+    pub stored: &'a [u8],
+    /// File offset of the payload (absolute).
+    pub payload_offset: usize,
+}
+
+impl BorrowedChunk<'_> {
+    /// The owning materialization (the compatibility copy).
+    pub fn to_owned(&self) -> Chunk {
+        Chunk {
+            header: self.header,
+            stored: self.stored.to_vec(),
+        }
+    }
+}
+
+/// Parse an MNFX container into BORROWED chunks (W8-D2: the shared
+/// validation implementation — the owning [`parse`] materializes this
+/// result, so both paths enforce one rule set). Identical acceptance,
+/// rejection, error messages and trailing-byte semantics as the owning
+/// path; malformed input = `Err`, never panic.
+pub fn parse_borrowed(buf: &[u8]) -> Result<(ContainerHeader, Vec<BorrowedChunk<'_>>)> {
+    parse_borrowed_impl(buf)
+}
+
+/// Validate the container header; return it and the offset just past it.
 fn parse_header(buf: &[u8]) -> Result<(ContainerHeader, usize)> {
     if buf.len() < HEADER_SIZE {
         return Err(Error::fmt_msg("mnfx: truncated header"));
@@ -61,9 +98,26 @@ pub struct Chunk {
     pub stored: Vec<u8>,
 }
 
-/// Parse and validate an MNFX container. Payloads stay bytes (W0);
-/// pixel-chunk interpretation lands at W1 via manifold-codec.
+/// Parse and validate an MNFX container (W8-D2 compat wrapper): the
+/// borrowed implementation runs the ONE validation walk and this
+/// materializes the payloads into the historical [`Chunk`] owning
+/// form. Public signature unchanged.
 pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
+    let (hdr, borrowed) = parse_borrowed_impl(buf)?;
+    Ok((
+        hdr,
+        borrowed
+            .into_iter()
+            .map(|bc| Chunk {
+                header: bc.header,
+                stored: bc.stored.to_vec(),
+            })
+            .collect(),
+    ))
+}
+
+/// The fundamental walk (W8-D2): validation over borrowed payloads.
+fn parse_borrowed_impl(buf: &[u8]) -> Result<(ContainerHeader, Vec<BorrowedChunk<'_>>)> {
     let (hdr, mut pos) = parse_header(buf)?;
     let mut chunks = Vec::with_capacity(usize::from(hdr.chunk_count).min(4096));
     let mut pixel_seen = false;
@@ -198,7 +252,7 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
             }
             meta_seen[idx] = true;
         }
-        chunks.push(Chunk {
+        chunks.push(BorrowedChunk {
             header: ChunkHeader {
                 chunk_type,
                 codec,
@@ -207,7 +261,8 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
                 crc,
                 payload_offset: pos - payload.len(),
             },
-            stored: payload.to_vec(),
+            stored: payload,
+            payload_offset: pos - payload.len(),
         });
     }
     // Pixel accounting is format-conditional: 8-bit formats carry the

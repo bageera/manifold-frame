@@ -7,8 +7,53 @@
 //! (big-endian interleave); W4 adds the metadata surface (rule 12).
 
 use crate::error::{Error, Result};
-use crate::parser::Chunk;
+use crate::parser::{BorrowedChunk, Chunk};
 use crate::*;
+use std::borrow::Cow;
+
+// ---- W8-D2: the shared decode surface over owned AND borrowed chunks ----
+
+/// The decoded-relevant surface of one chunk, shared by the owning and
+/// borrowed paths (one interpretation implementation; D2.2). `stored`
+/// borrows from the chunk — whose own borrow chain for
+/// [`BorrowedChunk`] reaches back to the ORIGINAL input buffer, so a
+/// raw plane can stay zero-copy end to end.
+pub(crate) struct ChunkView<'a> {
+    pub chunk_type: ChunkType,
+    pub codec: Codec,
+    pub raw_len: u32,
+    pub stored: &'a [u8],
+}
+
+pub(crate) trait AsChunkView<'a> {
+    fn as_view(&'a self) -> ChunkView<'a>;
+}
+
+impl<'a> AsChunkView<'a> for Chunk {
+    fn as_view(&'a self) -> ChunkView<'a> {
+        ChunkView {
+            chunk_type: self.header.chunk_type,
+            codec: self.header.codec,
+            raw_len: self.header.raw_len,
+            stored: &self.stored,
+        }
+    }
+}
+
+impl<'a> AsChunkView<'a> for BorrowedChunk<'a> {
+    fn as_view(&'a self) -> ChunkView<'a> {
+        ChunkView {
+            chunk_type: self.header.chunk_type,
+            codec: self.header.codec,
+            raw_len: self.header.raw_len,
+            stored: self.stored,
+        }
+    }
+}
+
+pub(crate) fn views_of<'a, T: AsChunkView<'a>>(chunks: &'a [T]) -> Vec<ChunkView<'a>> {
+    chunks.iter().map(|c| c.as_view()).collect()
+}
 
 /// The decoded pixel plane of an MNFX container: dims + interleaved
 /// row-major samples in the header's pixel format.
@@ -24,29 +69,85 @@ pub struct Pixels {
     pub samples: Vec<u8>,
 }
 
+/// W8-D2: the borrowed plane — `samples` is a `Cow`: a RAW payload
+/// stays a reference INSIDE the input buffer (the D2.4 zero-copy gate,
+/// asserted in `tests/w8d2_parity.rs`); decompressed or engine-decoded
+/// outputs are materialized owned, by design.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorrowedPixels<'a> {
+    /// Image dimensions (must equal the container header's).
+    pub dims: manifold::codec::Dims,
+    /// The container's pixel format (echoed for the caller).
+    pub format: PixelFormat,
+    /// Interleaved row-major samples: borrowed for raw planes, owned
+    /// for decompressed/decoded outputs.
+    pub samples: Cow<'a, [u8]>,
+}
+
 /// Decode a container's PIXEL chunk into pixels.
 ///
-/// Dispatch by payload magic: `MNF8` -> `decode_mnf8`, `MNF9` ->
-/// `decode_mnf9`. Raw/Zstd payloads are plain byte planes (v1 RGB8: the
-/// raw_len bound checks the exact size); zstd itself lands at W2 with the
-/// alpha layer (ponytail: raw/zstd cover no shipped producer yet).
+/// W8-D2: the owning wrapper — the ONE interpretation implementation
+/// ([`decode_pixels_view`]) runs over chunk views and this
+/// materializes the (possibly borrowed) plane into the historical
+/// owning `Pixels`.
 pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    Ok(Pixels {
+        dims,
+        format: hdr.pixel_format,
+        samples: samples.into_owned(),
+    })
+}
+
+/// W8-D2: borrowed decode — same interpretation, payloads (and RAW
+/// planes) borrowed from the input wherever the format allows.
+pub fn decode_pixels_borrowed<'a>(
+    hdr: &ContainerHeader,
+    chunks: &'a [BorrowedChunk<'a>],
+) -> Result<BorrowedPixels<'a>> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    Ok(BorrowedPixels {
+        dims,
+        format: hdr.pixel_format,
+        samples,
+    })
+}
+
+/// The ONE interpretation implementation (D2.2): header-derived bounds,
+/// embed magic agreement, raw/zstd plane decoding, planar16 assembly —
+/// identical for owned and borrowed callers; only the raw plane's
+/// backing differs (`Cow::Borrowed` vs a materialized copy). Generic
+/// over the chunk representation: for borrowed chunks the RAW plane is
+/// the input's bytes (zero-copy; asserted in the parity suite).
+fn decode_pixels_gen<'a, T: AsChunkView<'a>>(
+    hdr: &ContainerHeader,
+    chunks: &'a [T],
+) -> Result<(manifold::codec::Dims, Cow<'a, [u8]>)> {
     // 16-bit hi/lo plane formats: the pixels are the PIX16-HI/LO pair
     // (the parser enforces exactly one each, no Pixel chunk).
     if hdr.pixel_format.is_planar16() {
-        return decode_planar16(hdr, chunks);
+        return decode_planar16_view(hdr, chunks).map(|samples| {
+            (
+                manifold::codec::Dims {
+                    width: hdr.width,
+                    height: hdr.height,
+                },
+                Cow::Owned(samples),
+            )
+        });
     }
-    let pixel = chunks
+    let views = views_of(chunks);
+    let pixel = views
         .iter()
-        .find(|c| c.header.chunk_type == ChunkType::Pixel)
+        .find(|v| v.chunk_type == ChunkType::Pixel)
         .ok_or_else(|| Error::fmt_msg("mnfx: no pixel chunk"))?;
-    if pixel.header.codec == Codec::MnF8 || pixel.header.codec == Codec::MnF9 {
+    if pixel.codec == Codec::MnF8 || pixel.codec == Codec::MnF9 {
         // Embed payloads are the engines' native RGB8; other formats ride
         // the plane codecs (grammar rule 9).
         if hdr.pixel_format != PixelFormat::Rgb8 {
             return Err(Error::fmt_msg(format!(
                 "mnfx: embed codec {} requires pixel_format 1 (RGB8), got {}",
-                pixel.header.codec as u8, hdr.pixel_format as u8
+                pixel.codec as u8, hdr.pixel_format as u8
             )));
         }
         // An embed payload is a whole standalone file: dispatch by magic,
@@ -56,7 +157,7 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
             .stored
             .get(0..4)
             .ok_or_else(|| Error::fmt_msg("mnfx: pixel embed shorter than a magic (4 B)"))?;
-        let want: &[u8] = if pixel.header.codec == Codec::MnF8 {
+        let want: &[u8] = if pixel.codec == Codec::MnF8 {
             b"MNF8"
         } else {
             manifold::mnf9::MAGIC.as_slice()
@@ -64,56 +165,56 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
         if magic != want {
             return Err(Error::fmt_msg(format!(
                 "mnfx: pixel embed codec {} wants magic {} got {magic:02x?}",
-                pixel.header.codec as u8,
+                pixel.codec as u8,
                 String::from_utf8_lossy(want)
             )));
         }
         // The codec field routed here; its payload is exactly that engine's
-        // whole standalone file (magic already agrees above).
-        let (dims, rgb) = if pixel.header.codec == Codec::MnF8 {
-            let (d, px, _) = manifold::mnf8::decode_mnf8(&pixel.stored)
+        // whole standalone file (magic already agrees above). The engine
+        // takes borrowed bytes as-is (D2.2, no engine changes).
+        let (dims, rgb) = if pixel.codec == Codec::MnF8 {
+            let (d, px, _) = manifold::mnf8::decode_mnf8(pixel.stored)
                 .map_err(|e| Error::fmt_msg(format!("mnfx: MNF8 embed decode: {e}")))?;
             (d, px)
         } else {
-            manifold::mnf9::decode_mnf9(&pixel.stored)
+            manifold::mnf9::decode_mnf9(pixel.stored)
                 .map_err(|e| Error::fmt_msg(format!("mnfx: MNF9 embed decode: {e}")))?
         };
         check_dims(hdr, dims.width, dims.height)?;
-        return Ok(Pixels {
-            dims,
-            format: hdr.pixel_format,
-            samples: plane_bytes(hdr, rgb)?,
-        });
+        return Ok((dims, Cow::Owned(plane_bytes(hdr, rgb)?)));
     }
     // Raw / Zstd: an interleaved byte plane, bound = stride × pixels
     // (grammar rule 4: raw_len == stored_len == plane length).
     let bound = plane_bound(hdr)?;
-    let plane: Vec<u8> = match pixel.header.codec {
+    match pixel.codec {
         Codec::Raw => {
-            if pixel.stored.len() != bound || pixel.header.raw_len as usize != bound {
+            if pixel.stored.len() != bound || pixel.raw_len as usize != bound {
                 return Err(Error::fmt_msg(format!(
                     "mnfx: raw pixel layer {} B != header-derived {} B",
                     pixel.stored.len(),
                     bound
                 )));
             }
-            pixel.stored.clone()
-        }
-        Codec::Zstd => decompress_bounded(&pixel.stored, bound)?,
-        _ => {
-            return Err(Error::fmt_msg(
-                "mnfx: non-embed pixel codec must be raw or zstd",
+            // W8-D2 zero-copy: the raw plane IS the input's bytes.
+            Ok((
+                manifold::codec::Dims {
+                    width: hdr.width,
+                    height: hdr.height,
+                },
+                Cow::Borrowed(pixel.stored),
             ))
         }
-    };
-    Ok(Pixels {
-        dims: manifold::codec::Dims {
-            width: hdr.width,
-            height: hdr.height,
-        },
-        format: hdr.pixel_format,
-        samples: plane,
-    })
+        Codec::Zstd => Ok((
+            manifold::codec::Dims {
+                width: hdr.width,
+                height: hdr.height,
+            },
+            Cow::Owned(decompress_bounded(pixel.stored, bound)?),
+        )),
+        _ => Err(Error::fmt_msg(
+            "mnfx: non-embed pixel codec must be raw or zstd",
+        )),
+    }
 }
 
 /// The complete decoded image: pixels + the W4 metadata surface.
@@ -140,16 +241,25 @@ pub struct Metadata<'a> {
     pub orientation: u8,
 }
 
-/// Extract the metadata surface from parsed chunks (validated: ORNT
-/// payload must be one byte 1..=8; CICP exactly 4 bytes; EXIF must
-/// start with a byte-order marker — the minimal preservation-boundary
-/// checks; full structure is the consumer's job).
+/// Extract the metadata surface from chunk VIEWS (W8-D2: one
+/// implementation over owned and borrowed chunks; the returned
+/// `Metadata` borrows the payload bytes — original input for borrowed
+/// callers, the owning chunks' payloads for owning callers; valid
+/// lifetimes both ways).
+///
+/// Validated: ORNT payload must be one byte 1..=8; CICP exactly 4
+/// bytes; EXIF must start with a byte-order marker — the minimal
+/// preservation-boundary checks; full structure is the consumer's job.
 ///
 /// Orientation arbitration (grammar rule 12, W8-A1): the EXIF tag and
 /// the ORNT value are collected INDEPENDENTLY during iteration and
 /// resolved ONCE after the loop — EXIF tag > ORNT > header field — so
 /// the result never depends on chunk order.
-fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<Metadata<'a>> {
+fn validate_metadata_gen<'a, T: AsChunkView<'a>>(
+    hdr: &ContainerHeader,
+    chunks: &'a [T],
+) -> Result<Metadata<'a>> {
+    let views = views_of(chunks);
     let mut m = Metadata {
         exif: None,
         xmp: None,
@@ -160,9 +270,9 @@ fn validate_metadata<'a>(hdr: &ContainerHeader, chunks: &'a [Chunk]) -> Result<M
     // Collected per source, resolved after iteration (W8-A1).
     let mut exif_tag: Option<u8> = None;
     let mut ornt: Option<u8> = None;
-    for c in chunks {
-        let p = &*c.stored;
-        match c.header.chunk_type {
+    for v in views {
+        let p = v.stored;
+        match v.chunk_type {
             ChunkType::Exif => {
                 // EXIF starts "II"/2A00 or "MM"/002A (byte order + 42);
                 // anything else will not parse for ANY consumer.
@@ -244,14 +354,40 @@ fn read_exif_orientation(p: &[u8]) -> Option<u8> {
     None
 }
 
-/// Decode a container fully: pixels + validated metadata.
+/// Decode a container fully: pixels + validated metadata (owning
+/// wrapper over the shared W8-D2 implementation).
 pub fn decode_image<'a>(
     hdr: &ContainerHeader,
     chunks: &'a [Chunk],
 ) -> Result<(Pixels, Metadata<'a>)> {
-    let px = decode_pixels(hdr, chunks)?;
-    let meta = validate_metadata(hdr, chunks)?;
-    Ok((px, meta))
+    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    let meta = validate_metadata_gen(hdr, chunks)?;
+    Ok((
+        Pixels {
+            dims,
+            format: hdr.pixel_format,
+            samples: samples.into_owned(),
+        },
+        meta,
+    ))
+}
+
+/// W8-D2: the borrowed full image — raw planes stay zero-copy, metadata
+/// borrows the ORIGINAL input bytes, and all lifetimes tie to the input.
+pub fn decode_image_borrowed<'a>(
+    hdr: &ContainerHeader,
+    chunks: &'a [BorrowedChunk<'a>],
+) -> Result<(BorrowedPixels<'a>, Metadata<'a>)> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    let meta = validate_metadata_gen(hdr, chunks)?;
+    Ok((
+        BorrowedPixels {
+            dims,
+            format: hdr.pixel_format,
+            samples,
+        },
+        meta,
+    ))
 }
 
 /// The exact byte length of the pixel plane: width × height × stride(format).
@@ -265,41 +401,42 @@ fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
         .ok_or_else(|| Error::fmt_msg("mnfx: pixel area overflows usize"))
 }
 
-/// Decode a 16-bit container: join PIX16-HI + PIX16-LO into the
-/// interleaved big-endian sample plane (PNG wire order: hi plane = each
-/// sample's first byte). Each plane chunk carries exactly half the
-/// plane bound, per its own codec (raw/zstd; embed codecs stay RGB8-only
-/// by rule 9, so plane chunks must not carry them).
-fn decode_planar16(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
-    let dims = manifold::codec::Dims {
-        width: hdr.width,
-        height: hdr.height,
-    };
+/// Decode a 16-bit container (W8-D2 view core): join PIX16-HI + PIX16-LO
+/// into the interleaved big-endian sample plane (PNG wire order: hi
+/// plane = each sample's first byte). Each plane chunk carries exactly
+/// half the plane bound, per its own codec (raw/zstd; embed codecs stay
+/// RGB8-only by rule 9, so plane chunks must not carry them). The
+/// assembly is ALWAYS materialized (exact sample assembly, D2.2).
+fn decode_planar16_view<'a, T: AsChunkView<'a>>(
+    hdr: &ContainerHeader,
+    chunks: &'a [T],
+) -> Result<Vec<u8>> {
+    let views = views_of(chunks);
     let half = plane_bound(hdr)? / 2;
     let mut planes: [Option<Vec<u8>>; 2] = [None, None];
-    for c in chunks {
-        let slot = match c.header.chunk_type {
+    for c in views {
+        let slot = match c.chunk_type {
             ChunkType::Pix16Hi => 0usize,
             ChunkType::Pix16Lo => 1usize,
             _ => continue,
         };
-        if c.header.codec == Codec::MnF8 || c.header.codec == Codec::MnF9 {
+        if c.codec == Codec::MnF8 || c.codec == Codec::MnF9 {
             return Err(Error::fmt_msg(format!(
                 "mnfx: 16-bit plane chunk {slot} must not carry an embed codec"
             )));
         }
-        let raw = match c.header.codec {
+        let raw = match c.codec {
             Codec::Raw => {
-                if c.stored.len() != half || c.header.raw_len as usize != half {
+                if c.stored.len() != half || c.raw_len as usize != half {
                     return Err(Error::fmt_msg(format!(
                         "mnfx: 16-bit plane {slot} {} B != half-bound {} B",
                         c.stored.len(),
                         half
                     )));
                 }
-                c.stored.clone()
+                c.stored.to_vec()
             }
-            Codec::Zstd => decompress_bounded(&c.stored, half)?,
+            Codec::Zstd => decompress_bounded(c.stored, half)?,
             _ => {
                 return Err(Error::fmt_msg(
                     "mnfx: 16-bit plane codec must be raw or zstd",
@@ -322,11 +459,7 @@ fn decode_planar16(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
         samples.push(hi[i]);
         samples.push(lo[i]);
     }
-    Ok(Pixels {
-        dims,
-        format: hdr.pixel_format,
-        samples,
-    })
+    Ok(samples)
 }
 
 /// A raw (uncompressed) plane re-bounded by the header-derived length.

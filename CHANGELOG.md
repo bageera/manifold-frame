@@ -14,6 +14,37 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-D2 — borrowed parsing and decoding (performance + additive API;
+  NO wire change): the borrowed representation is now the fundamental
+  parser product — `parse_borrowed()` returns `BorrowedChunk<'_>`
+  (header + a payload reference INSIDE the input buffer; the historic
+  walk, one-to-one, is its implementation) and the owning `parse()` is
+  the materializing compatibility wrapper: ONE validation
+  implementation, zero duplicated rules (W8-A rules untouched:
+  CRC-before-interpretation, rule-13 matrix, duplicates, the W8-A3 u64
+  arithmetic, pure-append acceptance). Additive public API:
+  `parse_borrowed`, `BorrowedChunk`, `BorrowedPixels` (samples are a
+  `Cow`: RAW planes stay a reference inside the input — zero-copy;
+  zstd/embed and planar16 assembly materialize by design),
+  `decode_pixels_borrowed`, `decode_image_borrowed`; the decode
+  interpretation is ONE generic core over chunk views for both
+  representations. D2.3 attribution (arm64 runner,
+  `scripts/w8d2_bench.py`, one fresh process per leg, medians):
+  borrowed parse removes the payload-copy allocations — 64 MiB raw:
+  owning 44 allocs / ~470 MB vs borrowed 9 allocs / ~2 KB (parse
+  19.5 → 17.6 ms, FASTER not slower); borrowed full decode at
+  64 MiB metadata: decode 0.001 ms vs owning 1.39 ms and peak RSS
+  264.5 → 198.9 MB (−25 %) — the modeled payload-copy elimination
+  without overclaiming total-process halving. D2.4 gates all green:
+  acceptance/reject parity incl. pure-append mutations (55 inputs),
+  identical error strings, the pointer-inside-input allocation proof,
+  six-format sample exactness through both paths, byte-exact metadata,
+  lossless-rewrite identity, fuzz parity (mutation 350 / 110 accepted /
+  0 panics and ABI 190 / 60 / 0 — distributions IDENTICAL to the
+  pre-D2 vintages), owning-API compatibility (full suite green), no
+  unsafe in shipped code (the only unsafe is the test-target counting
+  allocator wrapper around `std::alloc::System`, instrument-only),
+  wire unchanged. Rows: `docs/w8d2-results.json`.
 - W8-D1 — CRC32C acceleration (performance; NO wire change): the
   shipped `crc32c` promotes slicing-by-16 — 16 KiB of const-evaluated
   tables, safe Rust, no new dependencies (`tests/w8d1_probe.rs` is the

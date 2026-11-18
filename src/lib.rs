@@ -315,9 +315,15 @@ pub fn crc32c(data: &[u8]) -> u32 {
     !crc
 }
 
-pub use crate::decode::{decode_image, decode_pixels, Metadata};
+pub use crate::decode::{
+    decode_image, decode_image_borrowed, decode_pixels, decode_pixels_borrowed, BorrowedPixels,
+    Metadata,
+};
 pub use crate::error::Error;
-pub use crate::parser::{parse, serialize, serialize_checked, validate_codec_compatibility, Chunk};
+pub use crate::parser::{
+    parse, parse_borrowed, serialize, serialize_checked, validate_codec_compatibility,
+    BorrowedChunk, Chunk,
+};
 
 #[cfg(test)]
 mod crc32c_w8d1_parity {
