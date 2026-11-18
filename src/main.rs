@@ -27,8 +27,23 @@ const USAGE: &str = concat!(
     " usage:
   mnfx encode <image.png> -o out.mnfx [--geom] [--mnf8[=balanced|maximum]]
   mnfx decode <in.mnfx> -o out.png
-  mnfx verify <image.png> <in.mnfx>"
+  mnfx verify <image.png> <in.mnfx>
+Notes: the CLI converts PIXELS only (source ICC/EXIF/XMP are not
+carried; v1 contract). --mnf8 (optionally =balanced|=maximum) PINS the
+embedded payload to the MNF8 engine at that profile; without it the
+encoder ships whichever whole-frame engine stream is smaller."
 );
+
+/// W8-F1 (audit #2, pinned by tests/cli_audit.rs): `--help`/`-h`
+/// print usage to STDOUT with exit 0; argument errors print usage to
+/// STDERR with exit 2 (die()).
+fn help_or_usage() {
+    let a: Vec<String> = std::env::args().skip(1).collect();
+    if a.len() == 1 && (a[0] == "--help" || a[0] == "-h") {
+        println!("{USAGE}");
+        std::process::exit(0);
+    }
+}
 
 struct Args {
     cmd: String,
@@ -37,9 +52,14 @@ struct Args {
     verify_file: Option<PathBuf>,
     geom: bool,
     profile: Profile,
+    /// W8-F1 (audit #1): `--mnf8` (bare or with a profile) PINS the
+    /// payload to the MNF8 engine — the MNF9 smaller-stream arm stops
+    /// competing, so the embedded magic always matches the selection.
+    force_mnf8: bool,
 }
 
 fn parse_args() -> Args {
+    help_or_usage();
     let a: Vec<String> = std::env::args().skip(1).collect();
     let bad = |m: String| -> ! { die(&format!("{USAGE}\n{m}")) };
     let cmd = a
@@ -51,6 +71,7 @@ fn parse_args() -> Args {
     }
     let mut geom = false;
     let mut profile = Profile::Balanced;
+    let mut force_mnf8 = false;
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut out: Option<PathBuf> = None;
     let mut it = a.iter().skip(1);
@@ -62,9 +83,21 @@ fn parse_args() -> Args {
                 ))
             }
             "--geom" => geom = true,
-            "--mnf8" => {}
-            "--mnf8=balanced" => profile = Profile::Balanced,
-            "--mnf8=maximum" => profile = Profile::Maximum,
+            // W8-F1: all three spellings pin the engine (audit #1):
+            // bare == balanced AND the pin; the profile variants imply
+            // the pin, so none is a silent no-op anymore.
+            "--mnf8" => {
+                profile = Profile::Balanced;
+                force_mnf8 = true;
+            }
+            "--mnf8=balanced" => {
+                profile = Profile::Balanced;
+                force_mnf8 = true;
+            }
+            "--mnf8=maximum" => {
+                profile = Profile::Maximum;
+                force_mnf8 = true;
+            }
             other if !other.starts_with('-') => paths.push(PathBuf::from(other)),
             other => bad(format!("unknown flag '{other}'")),
         }
@@ -97,6 +130,7 @@ fn parse_args() -> Args {
         verify_file,
         geom,
         profile,
+        force_mnf8,
     }
 }
 
@@ -132,9 +166,15 @@ fn encode_cmd(args: &Args) {
     // (the requested profile) competes with the MNF9 whole-frame arm at
     // final file size; smaller ships, decode dispatches by magic.
     let (mnf8_file, st, _backend) = encode_mnf8(&img.pixels, dims, args.geom, args.profile);
-    let (file, codec) = match mnf9::encode_exact(&img.pixels, dims) {
-        Some(mnf9_file) if mnf9_file.len() < mnf8_file.len() => (mnf9_file, Codec::MnF9),
-        _ => (mnf8_file, Codec::MnF8),
+    // W8-F1: under the --mnf8 pin the MNF9 arm does not compete — the
+    // selection flag and the embedded payload magic cannot disagree.
+    let (file, codec) = if args.force_mnf8 {
+        (mnf8_file, Codec::MnF8)
+    } else {
+        match mnf9::encode_exact(&img.pixels, dims) {
+            Some(mnf9_file) if mnf9_file.len() < mnf8_file.len() => (mnf9_file, Codec::MnF9),
+            _ => (mnf8_file, Codec::MnF8),
+        }
     };
     let hdr = ContainerHeader {
         pixel_format: PixelFormat::Rgb8,
@@ -157,7 +197,11 @@ fn encode_cmd(args: &Args) {
         if codec == Codec::MnF9 { "mnf9" } else { "mnf8" },
         buf.len(),
         buf.len() - file.len(),
-        dims.width * dims.height,
+        // W8-F1 (audit #3): the reported pixel count is computed in u64
+        // (a u32 multiply would wrap/panic near the grammar's
+        // checked_mul ceiling); the format machinery itself uses
+        // checked u64 bounds (src/limits.rs, verified by w8e_limits).
+        u64::from(dims.width) * u64::from(dims.height),
         st.chosen_flags,
         t0.elapsed().as_millis(),
     );

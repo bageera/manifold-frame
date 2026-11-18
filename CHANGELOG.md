@@ -14,6 +14,23 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-F1 — retained CLI audit resolved (behavior-pinning CLI changes +
+  docs; NO wire change): bare `--mnf8` (and the profile variants) now
+  PIN the embedded payload to the MNF8 engine at the requested profile
+  — the MNF9 smaller-stream arm stops competing, so a selection flag
+  and the embedded magic can never disagree (the flag is no longer a
+  silent no-op; usage text documents pin vs the unsigned auto-pick).
+  Help-and-error split pinned by tests: `--help`/`-h` → usage on
+  STDOUT exit 0; argument errors → usage on STDERR exit 2. The encode
+  report's pixel count multiplies in u64 (no u32 wrap/panic near the
+  grammar ceiling). The pixels-only CLI contract re-affirmed in the
+  usage text (metadata conversion stays a future feature). The C ABI
+  early-out semantics pinned in the shipped C consumer doc
+  (capi-README.md): a size query establishes the required output
+  length only, never payload reconstruction. Executed verification:
+  tests/cli_audit.rs 3/3 (spawned-binary e2e; feature-gated on the
+  CLI, `required-features = ["cli"]`), C-ABI gate still PASS, clippy
+  clean with the CLI feature, rows in docs/w8-remaining-audit.md.
 - W8-E4 — dependency audit (recorded negative result; no code change):
   `zstd`/`zstd-sys` already enter TRANSITIVELY through the vendored
   engine's default features (`manifold-codec` → zstd → zstd-safe →

@@ -15,6 +15,17 @@ exports no allocator: callers own every buffer.
   other byte (the lossless-rewrite contract); CRC32C recomputed
   in-crate, no caller CRC input.
 
+## Size query vs reconstruction (W8-F1 pin)
+
+`mnfx_decode`'s `BUF_TOO_SMALL` size query establishes the REQUIRED
+OUTPUT LENGTH (and the header fields) only — it does NOT certify that
+the compressed payload reconstructs. Corruption inside the payload is
+returned by a subsequent full call with an adequately sized buffer
+(`MNFX_STATUS_FORMAT_INVALID`); the size query exits before any plane
+is materialized or the engine runs (an undersized caller buffer can
+never trigger pixel reconstruction or engine execution). Treat the
+size query as an allocation guide, then call again to decode.
+
 ## Gates
 
 - `cargo test -p manifold-frame-capi` — the Rust-cores suite.
