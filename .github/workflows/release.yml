@@ -182,9 +182,15 @@ jobs:
               ver = p['package_version']
               if expected and ver != expected:
                   sys.exit(f"{a}: package {ver} != tag {expected} — refusing to publish")
-              if ver in seen:
-                  sys.exit(f"duplicate package version across archives: {ver}")
-              seen.add(ver)
+              # The same release version is EXPECTED across the platform
+              # archives (one version, two targets); the duplicate check
+              # keys on (version, target) — one archive per platform.
+              # (W8-F5 incident: the plain version key false-positived on
+              # the production tag run and refused to publish.)
+              key = (ver, p['target'])
+              if key in seen:
+                  sys.exit(f"duplicate version+target across archives: {ver}/{p['target']}")
+              seen.add(key)
               print(f"{a}: package {ver}, target {p['target']}, runner {p['runner_architecture']}, commit {p['git_commit'][:12]}")
           if not seen:
               sys.exit("no distributable archives produced")
@@ -202,7 +208,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --draft \
             --title "manifold-frame $GITHUB_REF_NAME" \
-            --notes "Per-target archives (bin/ include/ lib/ share/, provenance.json, SHA256SUMS) + external SHA256SUMS. Provenance records: wire v1, git commit, rustc/cargo versions, locked engine version + registry checksum, target and runner architecture, shared-library lists. MNFX v1 wire grammar: docs/mnfx-grammar.md."
+            --notes "Per-target archives (bin/ include/ lib/ share/, provenance.json, SHA256SUMS) + external SHA256SUMS. Provenance records: wire v1, git commit, rustc/cargo versions, locked engine version + registry checksum, target and runner architecture, shared-library lists. MNFX v1 wire grammar: docs/mnfx-grammar.md.\n\nQualifications preserved: (1) MNF9 resource exposure — the embedded payload limit is not a strict bound on MNF9 internal working memory or execution time; (2) fuzz parity establishes acceptance parity across the tested mutation sets, not a universal proof of equivalent acceptance for every possible input."
           gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS
           mkdir -p /tmp/asset-verify && cd /tmp/asset-verify
           gh release download "$GITHUB_REF_NAME" --pattern '*.tar.gz' --pattern 'SHA256SUMS'
