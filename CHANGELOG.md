@@ -14,6 +14,26 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-E4 — dependency audit (recorded negative result; no code change):
+  `zstd`/`zstd-sys` already enter TRANSITIVELY through the vendored
+  engine's default features (`manifold-codec` → zstd → zstd-safe →
+  zstd-sys), so an optional frame-level zstd feature would remove only
+  the frame's own call sites while every default-feature consumer keeps
+  the identical native link. NO feature flags introduced. Tree evidence
+  and consequences recorded in `docs/w8e-dependency-audit.md`.
+- W8-E3 — checked zstd plane producer (additive API; uses the EXISTING
+  format vocabulary — not a new backend or wire representation): new
+  `encode` module with `zstd_plane_chunks(plane, fmt, width, height)`
+  and the convenience `zstd_plane_container`. Contract honored: chunk
+  types valid per format (PIXEL for the interleaved formats, the
+  PIX16-HI/LO pair for planar16), sample length CHECKED against the
+  format-derived plane bound (both too-short and too-long reject with
+  the bound named), zstd level 19 with the checksum ENABLED, raw_len
+  left zero by the frozen grammar (asserted), rule-13 proved through
+  the same validator the serializer uses, and serialization through
+  `serialize_checked`. Verification: tests/w8e_zstd_producer.rs 4/4 —
+  all six supported shapes reconstruct EXACTLY through the W8-E2
+  limits-aware reader.
 - W8-E2 — resource limits for untrusted containers (additive API; no
   acceptance or wire change): `DecodeLimits` (max_width/height,
   max_pixels, max_decoded_bytes, max_embed_input_bytes,

@@ -38,6 +38,8 @@
 
 /// W1: pixel-layer decode (embedded == standalone gate).
 pub mod decode;
+/// W8-E3: the checked zstd plane producer (additive API).
+pub mod encode;
 pub mod error;
 /// W8-E2: resource limits for untrusted input (additive API).
 pub mod limits;
