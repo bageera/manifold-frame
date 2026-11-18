@@ -1,6 +1,6 @@
 [package]
 name = "manifold-frame-capi"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.91"
 description = "C FFI for the MNFX container (manifold-frame): bounded decode + lossless plane rewrite"
@@ -18,4 +18,4 @@ name = "manifold_frame_capi"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
-manifold-frame = { path = "..", version = "0.1.0" }
+manifold-frame = { path = "..", version = "0.2.0" }

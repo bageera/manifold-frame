@@ -12,7 +12,17 @@ Published as `manifold-frame` 0.1.1 — no wire-API changes behind the
 verification) and the W7-A negative result, plus the refreshed
 README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
-# Unreleased
+# 0.2.0 — release candidate (rc1; W8-F)
+
+Release-qualification revision. Wire: MNFX v1, unchanged. The Rust
+package moves 0.1.1 → 0.2.0 (additive API volume since 0.1.0: borrowed
+parsing, W8-E limits, the checked producer; all additive, the 0.1.x
+caller contracts intact). The C ABI crate (publish = false, ships in
+the binary archives) moves in lockstep; the C surface — signatures,
+status values, caller-owned memory — is unchanged. Historical notes
+below were written for [Unreleased] during W8; they land in 0.2.0 as
+the release content. A source change after the F4 requalification
+triggers another rc stamp and a fresh F4 run.
 
 - W8-F1 — retained CLI audit resolved (behavior-pinning CLI changes +
   docs; NO wire change): bare `--mnf8` (and the profile variants) now
