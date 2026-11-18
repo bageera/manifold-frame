@@ -7,6 +7,14 @@
 //! crate exports no allocator helpers on purpose: callers own every
 //! byte, so cross-language memory ownership stays unambiguous.
 
+// W8-E1: unsafe_op_in_unsafe_fn — every unsafe operation must live in
+// an explicitly scoped block (deny, not warn).
+#![deny(unsafe_op_in_unsafe_fn)]
+
+// W8-E1: every unsafe operation is an EXPLICITLY SCOPED block whose
+// safety invariant references the caller contracts in the # Safety
+// sections of the exported functions below.
+
 // Status codes (stable ABI: values fixed by C header contract).
 pub const STATUS_OK: i32 = 0;
 pub const STATUS_NULL_ARG: i32 = -1;
@@ -29,12 +37,28 @@ fn status(_: &manifold_frame::Error) -> i32 {
 /// written back; otherwise the copy plus the written length.
 unsafe fn copy_out(bytes: &[u8], out: *mut u8, out_len: *mut usize) -> i32 {
     let need = bytes.len();
-    if out.is_null() || *out_len < need {
-        *out_len = need;
+    // SAFETY: out_len is non-null; reading one usize through it is within
+    // the caller's writable contract.
+    if out.is_null() || unsafe { *out_len } < need {
+        // SAFETY: out_len is non-null (checked by the caller) and must be
+        // writable for one usize, per the mnfx_decode/mnfx_rewrite_chunk
+        // caller contracts.
+        unsafe {
+            *out_len = need;
+        }
         return STATUS_BUF_TOO_SMALL;
     }
-    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, need);
-    *out_len = need;
+    // SAFETY: out is non-null, *out_len >= need (checked above), and both
+    // buffers are valid for `need` readable/writable bytes per the caller
+    // contracts; copy_nonoverlapping because source and destination never
+    // alias.
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, need);
+    }
+    // SAFETY: same non-null/writable contract as above.
+    unsafe {
+        *out_len = need;
+    }
     STATUS_OK
 }
 
@@ -64,19 +88,27 @@ pub unsafe extern "C" fn mnfx_decode(
     if buf.is_null() || out_len.is_null() || width.is_null() || height.is_null() {
         return STATUS_NULL_ARG;
     }
-    let data = std::slice::from_raw_parts(buf, len);
+    // SAFETY: the caller guarantees buf points to `len` readable bytes
+    // (mnfx_decode # Safety contract).
+    let data: &[u8] = unsafe { std::slice::from_raw_parts(buf, len) };
     let (hdr, chunks) = match parse(data) {
         Ok(v) => v,
         Err(e) => return status(&e),
     };
-    write_header_wide(&hdr, width, height, pixel_format, orientation);
+    // SAFETY: all pointer targets are the caller's, non-null where
+    // required (null-checked inside), per the mnfx_decode contract.
+    unsafe {
+        write_header_wide(&hdr, width, height, pixel_format, orientation);
+    }
     // The full plane: embedded formats decode through the engines;
     // raw/zstd planes are checked against the header-derived bound.
     let plane = match decode_plane(&hdr, &chunks) {
         Ok(p) => p,
         Err(e) => return status(&e),
     };
-    copy_out(&plane, out, out_len)
+    // SAFETY: plane bytes are the output; out/out_len honor the caller
+    // contract (non-null out_len, writable sizes as checked in copy_out).
+    unsafe { copy_out(&plane, out, out_len) }
 }
 
 /// Rewrite one chunk's payload in place, preserving every other byte
@@ -100,17 +132,24 @@ pub unsafe extern "C" fn mnfx_rewrite_chunk(
     if buf.is_null() || out_len.is_null() || (new_payload.is_null() && new_len != 0) {
         return STATUS_NULL_ARG;
     }
-    let data = std::slice::from_raw_parts(buf, len);
+    // SAFETY: the caller guarantees buf points to `len` readable bytes,
+    // and new_payload to `new_len` readable bytes when new_len > 0
+    // (mnfx_rewrite_chunk # Safety contract).
+    let data: &[u8] = unsafe { std::slice::from_raw_parts(buf, len) };
     let payload: &[u8] = if new_len == 0 {
         &[]
     } else {
-        std::slice::from_raw_parts(new_payload, new_len)
+        // SAFETY: same caller contract, new_len > 0 and new_payload
+        // non-null in this branch.
+        unsafe { std::slice::from_raw_parts(new_payload, new_len) }
     };
     let rewritten = match rewrite_chunk(data, chunk_index, payload) {
         Ok(v) => v,
         Err(e) => return status(&e),
     };
-    copy_out(&rewritten, out, out_len)
+    // SAFETY: rewritten bytes are the output; out/out_len honor the caller
+    // contract (non-null out_len, writable sizes as checked in copy_out).
+    unsafe { copy_out(&rewritten, out, out_len) }
 }
 
 /// The header-field writes shared by both status outcomes of the
@@ -123,13 +162,26 @@ unsafe fn write_header_wide(
     pixel_format: *mut u8,
     orientation: *mut u8,
 ) {
-    *width = hdr.width;
-    *height = hdr.height;
+    // SAFETY: width and height are non-null and each must be writable for
+    // one u32 (mnfx_decode caller contract; written on OK and
+    // BUF_TOO_SMALL alike).
+    unsafe {
+        *width = hdr.width;
+        *height = hdr.height;
+    }
     if !pixel_format.is_null() {
-        *pixel_format = hdr.pixel_format as u8;
+        // SAFETY: pixel_format is non-null (checked) and writable for one
+        // byte per the caller contract.
+        unsafe {
+            *pixel_format = hdr.pixel_format as u8;
+        }
     }
     if !orientation.is_null() {
-        *orientation = hdr.orientation;
+        // SAFETY: orientation is non-null (checked) and writable for one
+        // byte per the caller contract.
+        unsafe {
+            *orientation = hdr.orientation;
+        }
     }
 }
 

@@ -8,6 +8,15 @@
 //! embedded under MNFX decodes byte-identically to its standalone
 //! decode (the W1 exit gate).
 //!
+//! W8-E1: **no unsafe code may enter the container crate** — the
+//! parser, decoders, serializer and CRC are safe Rust by construction;
+//! raw-pointer work belongs to the `capi` crate (which scopes each
+//! unsafe block explicitly).
+//!
+// W8-E1: forbidden (not denied) — a future unsafe block must be an
+// explicit, reviewed opt-OUT of this line.
+#![forbid(unsafe_code)]
+
 //! # Wire grammar (v1, W0-frozen)
 //!
 //! Container header (18 bytes):
