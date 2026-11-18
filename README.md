@@ -77,8 +77,12 @@ at decode.
 
 ## Versioning
 
-The wire grammar is frozen for v1; the container publishes under the
-`0.1.x` line while the interoperability story hardens. `CHANGELOG.md`
-carries the per-gate history. Engine work (including any memory-tuned
+The wire grammar is frozen for v1; the container publishes under
+semver, now on the `0.2.0` release-candidate line (0.1.x remains
+published and consumable; the 0.1.x calling contracts stay intact). The
+C ABI keeps the two-function surface, status values and caller-owned
+memory contract unchanged; the C consumer doc (capi-README.md, shipped
+in the archives) holds the size-query-vs-reconstruction pin.
+`CHANGELOG.md` carries the per-gate history. Engine work (including any memory-tuned
 profile) stays in `manifold-codec`; the frame depends on it by
 semver-compatible version pin, currently `1.14`.
