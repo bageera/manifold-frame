@@ -39,6 +39,8 @@
 /// W1: pixel-layer decode (embedded == standalone gate).
 pub mod decode;
 pub mod error;
+/// W8-E2: resource limits for untrusted input (additive API).
+pub mod limits;
 /// The bounded container parser.
 pub mod parser;
 
@@ -325,13 +327,15 @@ pub fn crc32c(data: &[u8]) -> u32 {
 }
 
 pub use crate::decode::{
-    decode_image, decode_image_borrowed, decode_pixels, decode_pixels_borrowed, BorrowedPixels,
-    Metadata,
+    decode_image, decode_image_borrowed, decode_image_borrowed_limited, decode_image_limited,
+    decode_pixels, decode_pixels_borrowed, decode_pixels_borrowed_limited, decode_pixels_limited,
+    BorrowedPixels, Metadata,
 };
 pub use crate::error::Error;
+pub use crate::limits::{check_embed_input, check_header, check_plane, DecodeLimits};
 pub use crate::parser::{
-    parse, parse_borrowed, serialize, serialize_checked, validate_codec_compatibility,
-    BorrowedChunk, Chunk,
+    parse, parse_borrowed, parse_borrowed_limited, parse_limited, serialize, serialize_checked,
+    validate_codec_compatibility, BorrowedChunk, Chunk,
 };
 
 #[cfg(test)]

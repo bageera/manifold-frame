@@ -35,7 +35,37 @@ impl BorrowedChunk<'_> {
 /// rejection, error messages and trailing-byte semantics as the owning
 /// path; malformed input = `Err`, never panic.
 pub fn parse_borrowed(buf: &[u8]) -> Result<(ContainerHeader, Vec<BorrowedChunk<'_>>)> {
-    parse_borrowed_impl(buf)
+    parse_borrowed_impl(buf, None)
+}
+
+/// W8-E2: limits-aware borrowed parse — every ceiling (header fields,
+/// pixel count, chunk count, the metadata aggregate) is enforced BEFORE
+/// the corresponding allocation; the acceptance semantics of the
+/// unlimited readers are unchanged when the limits are relaxed.
+pub fn parse_borrowed_limited<'a>(
+    buf: &'a [u8],
+    limits: &crate::limits::DecodeLimits,
+) -> Result<(ContainerHeader, Vec<BorrowedChunk<'a>>)> {
+    parse_borrowed_impl(buf, Some(limits))
+}
+
+/// W8-E2: owning limits-aware parse (payloads materialized after the
+/// bounded walk).
+pub fn parse_limited(
+    buf: &[u8],
+    limits: &crate::limits::DecodeLimits,
+) -> Result<(ContainerHeader, Vec<Chunk>)> {
+    let (hdr, borrowed) = parse_borrowed_limited(buf, limits)?;
+    Ok((
+        hdr,
+        borrowed
+            .into_iter()
+            .map(|bc| Chunk {
+                header: bc.header,
+                stored: bc.stored.to_vec(),
+            })
+            .collect(),
+    ))
 }
 
 /// Validate the container header; return it and the offset just past it.
@@ -103,7 +133,7 @@ pub struct Chunk {
 /// materializes the payloads into the historical [`Chunk`] owning
 /// form. Public signature unchanged.
 pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
-    let (hdr, borrowed) = parse_borrowed_impl(buf)?;
+    let (hdr, borrowed) = parse_borrowed_impl(buf, None)?;
     Ok((
         hdr,
         borrowed
@@ -117,8 +147,16 @@ pub fn parse(buf: &[u8]) -> Result<(ContainerHeader, Vec<Chunk>)> {
 }
 
 /// The fundamental walk (W8-D2): validation over borrowed payloads.
-fn parse_borrowed_impl(buf: &[u8]) -> Result<(ContainerHeader, Vec<BorrowedChunk<'_>>)> {
+fn parse_borrowed_impl<'a>(
+    buf: &'a [u8],
+    limits: Option<&crate::limits::DecodeLimits>,
+) -> Result<(ContainerHeader, Vec<BorrowedChunk<'a>>)> {
     let (hdr, mut pos) = parse_header(buf)?;
+    // W8-E2: header-stage limits, BEFORE any chunk walk or allocation.
+    if let Some(l) = limits {
+        crate::limits::check_header(&hdr, l)?;
+    }
+    let mut metadata_bytes: usize = 0;
     let mut chunks = Vec::with_capacity(usize::from(hdr.chunk_count).min(4096));
     let mut pixel_seen = false;
     // [hi_seen, lo_seen] for the 16-bit plane chunks.
@@ -251,6 +289,29 @@ fn parse_borrowed_impl(buf: &[u8]) -> Result<(ContainerHeader, Vec<BorrowedChunk
                 )));
             }
             meta_seen[idx] = true;
+        }
+        // W8-E2: walked-chunk-count + metadata-aggregate ceilings, both
+        // enforced inside the walk (before the descriptors are kept).
+        if let Some(l) = limits {
+            if (i as usize + 1) > l.max_chunks {
+                return Err(crate::limits::max_chunks((i + 1) as u64, l.max_chunks));
+            }
+            if matches!(
+                chunk_type,
+                ChunkType::Exif
+                    | ChunkType::Xmp
+                    | ChunkType::Icc
+                    | ChunkType::Cicp
+                    | ChunkType::Orientation
+            ) {
+                metadata_bytes += payload.len();
+                if metadata_bytes as u64 > l.max_metadata_bytes {
+                    return Err(crate::limits::max_metadata(
+                        metadata_bytes as u64,
+                        l.max_metadata_bytes,
+                    ));
+                }
+            }
         }
         chunks.push(BorrowedChunk {
             header: ChunkHeader {

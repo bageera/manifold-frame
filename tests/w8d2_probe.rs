@@ -364,14 +364,21 @@ fn leg_l4_borrowed_parse_decode() {
 }
 
 fn main() {
-    let leg = env_str("W8D2_LEG");
+    // The probe is driven by scripts/w8d2_bench.py, which sets W8D2_LEG per
+    // fresh process (W7-A methodology). A bare `cargo test` dispatch with
+    // the variable absent is a SKIP, not an error: the unknown-leg panic
+    // contract stays for the driver path.
+    let Ok(leg) = std::env::var("W8D2_LEG") else {
+        eprintln!("W8D2_LEG absent: probe skip (drive via scripts/w8d2_bench.py)");
+        return;
+    };
     match leg.as_str() {
         "l0_baseline" => leg_l0_parser(),
         "l3_owned_pd" => leg_l3_owned_parse_decode(),
         "l1_parse" => leg_l1_wrapper_parse(),
         "l2_parse" => leg_l2_borrowed_parse(),
         "l4_borrowed_pd" => leg_l4_borrowed_parse_decode(),
-        other => panic!("leg {other} is not implemented in the frozen-D1 baseline binary"),
+        other => panic!("leg {other} is not implemented in the post-change probe binary"),
     }
 }
 

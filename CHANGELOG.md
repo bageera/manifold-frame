@@ -14,6 +14,42 @@ README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
 # Unreleased
 
+- W8-E2 — resource limits for untrusted containers (additive API; no
+  acceptance or wire change): `DecodeLimits` (max_width/height,
+  max_pixels, max_decoded_bytes, max_embed_input_bytes,
+  max_metadata_bytes, max_chunks, `embed_engine`) is enforced BEFORE
+  the matching allocations at three stages: header fields + pixel
+  count + declared chunk count right after the header; walked chunk
+  count + the metadata aggregate inside the bounded walk; the plane
+  ceiling (exact for raw, the zstd decompression bound, planar16
+  hi+lo aggregate) plus the per-embed payload budget before the
+  engine, with the engine's own ceilings passed THROUGH for MNF8
+  (`decode_mnf8_with_limits`). MNF9 embeds: the engine exposes no
+  limits-aware API — the payload budget is the exposure proxy and the
+  limitation is RECORDED rather than claimed. Additive readers:
+  `parse_borrowed_limited`, `parse_limited`, `decode_pixels_limited`,
+  `decode_pixels_borrowed_limited`, `decode_image_limited`,
+  `decode_image_borrowed_limited`; the unlimited readers are
+  behaviorally unchanged (relaxed-limits identity verified). C ABI
+  (signature-preserving): `mnfx_decode`'s size query is now the
+  resource guard — a caller buffer smaller than the plane returns
+  BUF_TOO_SMALL with the exact required size BEFORE the plane is
+  materialized or the engine runs. Verification: tests/w8e_limits.rs
+  5/5 (boundary arithmetic, embed budget + engine passthrough,
+  relaxed-limits behavioral identity, metadata aggregate + chunk
+  ceilings), capi early-out unit test, C-ABI gate PASS, mutation +
+  ABI fuzz distributions identical to the pre-E2 vintages
+  (350/240/110/0, 190/130/60/0 @ seed 2026).
+- W8-E1 — structural safety restrictions (no behavior change):
+  `#![forbid(unsafe_code)]` crate-level in the core library (safe by
+  construction; forbidden, not denied — a future unsafe block is an
+  explicit reviewed opt-OUT) and `#![deny(unsafe_op_in_unsafe_fn)]`
+  in the C-ABI crate with every raw-pointer operation moved into
+  explicitly scoped blocks whose SAFETY comments name the caller
+  contracts. Behavior unchanged: C-ABI gate PASS (six formats
+  byte-exact, hostile rc=2). Also: tests/w8d2_probe.rs run_leg now
+  SKIPS cleanly when W8D2_LEG is absent (the bench-driver-only env;
+  the unknown-leg panic contract stays for the driver path).
 - W8-D2 — borrowed parsing and decoding (performance + additive API;
   NO wire change): the borrowed representation is now the fundamental
   parser product — `parse_borrowed()` returns `BorrowedChunk<'_>`

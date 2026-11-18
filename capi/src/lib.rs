@@ -317,4 +317,43 @@ mod tests {
         assert_eq!(decode_plane(&h, &chunks).unwrap().len(), 8 * 8 * 3);
         assert!(parse("NOPE".as_bytes()).is_err());
     }
+
+    #[cfg(test)]
+    mod w8e2_early_out {
+        use super::*;
+
+        #[test]
+        fn too_small_buffer_returns_sizes_before_decoding() {
+            // The raw RGB8 8x8 smoke shape: a deliberately tiny out buffer
+            // must return BUF_TOO_SMALL with the exact required plane size
+            // and the header fields BEFORE the decode runs (W8-E2
+            // C-ABI resource guard; statuses and size outputs are
+            // identical to the pre-E2 contract).
+            let cont = raw_container();
+            let mut w: u32 = 0;
+            let mut h: u32 = 0;
+            let mut pf: u8 = 0;
+            let mut o: u8 = 0;
+            let mut out = [0u8; 8];
+            let mut out_len: usize = 8;
+            let st = unsafe {
+                mnfx_decode(
+                    cont.as_ptr(),
+                    cont.len(),
+                    out.as_mut_ptr(),
+                    &mut out_len,
+                    &mut w,
+                    &mut h,
+                    &mut pf,
+                    &mut o,
+                )
+            };
+            assert_eq!(st, STATUS_BUF_TOO_SMALL);
+            assert_eq!(out_len, 8 * 8 * 3);
+            assert_eq!(w, 8);
+            assert_eq!(h, 8);
+            assert_eq!(pf, manifold_frame::PixelFormat::Rgb8 as u8);
+            assert_eq!(o, 1);
+        }
+    }
 }

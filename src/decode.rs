@@ -91,7 +91,7 @@ pub struct BorrowedPixels<'a> {
 /// materializes the (possibly borrowed) plane into the historical
 /// owning `Pixels`.
 pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> {
-    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, None)?;
     Ok(Pixels {
         dims,
         format: hdr.pixel_format,
@@ -101,11 +101,42 @@ pub fn decode_pixels(hdr: &ContainerHeader, chunks: &[Chunk]) -> Result<Pixels> 
 
 /// W8-D2: borrowed decode — same interpretation, payloads (and RAW
 /// planes) borrowed from the input wherever the format allows.
+/// W8-E2: limits-aware borrowed decode — every ceiling enforced before
+/// the matching allocation/decompression; semantics are otherwise the
+/// unlimited reader's (relaxed limits behave identically).
+pub fn decode_pixels_borrowed_limited<'a>(
+    hdr: &ContainerHeader,
+    chunks: &'a [BorrowedChunk<'a>],
+    limits: &crate::limits::DecodeLimits,
+) -> Result<BorrowedPixels<'a>> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, Some(limits))?;
+    Ok(BorrowedPixels {
+        dims,
+        format: hdr.pixel_format,
+        samples,
+    })
+}
+
+/// W8-E2: owning limits-aware decode (plane ceilings enforced in the
+/// shared core before the materialization copy).
+pub fn decode_pixels_limited(
+    hdr: &ContainerHeader,
+    chunks: &[Chunk],
+    limits: &crate::limits::DecodeLimits,
+) -> Result<Pixels> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, Some(limits))?;
+    Ok(Pixels {
+        dims,
+        format: hdr.pixel_format,
+        samples: samples.into_owned(),
+    })
+}
+
 pub fn decode_pixels_borrowed<'a>(
     hdr: &ContainerHeader,
     chunks: &'a [BorrowedChunk<'a>],
 ) -> Result<BorrowedPixels<'a>> {
-    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, None)?;
     Ok(BorrowedPixels {
         dims,
         format: hdr.pixel_format,
@@ -122,11 +153,12 @@ pub fn decode_pixels_borrowed<'a>(
 fn decode_pixels_gen<'a, T: AsChunkView<'a>>(
     hdr: &ContainerHeader,
     chunks: &'a [T],
+    limits: Option<&crate::limits::DecodeLimits>,
 ) -> Result<(manifold::codec::Dims, Cow<'a, [u8]>)> {
     // 16-bit hi/lo plane formats: the pixels are the PIX16-HI/LO pair
     // (the parser enforces exactly one each, no Pixel chunk).
     if hdr.pixel_format.is_planar16() {
-        return decode_planar16_view(hdr, chunks).map(|samples| {
+        return decode_planar16_view(hdr, chunks, limits).map(|samples| {
             (
                 manifold::codec::Dims {
                     width: hdr.width,
@@ -172,15 +204,30 @@ fn decode_pixels_gen<'a, T: AsChunkView<'a>>(
         // The codec field routed here; its payload is exactly that engine's
         // whole standalone file (magic already agrees above). The engine
         // takes borrowed bytes as-is (D2.2, no engine changes).
+        if let Some(l) = limits {
+            // W8-E2: the embed payload budget BEFORE the engine runs. For
+            // MNF8 the caller's engine ceilings pass through to the
+            // engine's own limits-aware decoder; MNF9 has no engine
+            // counterpart — the budget here is the recorded proxy, and
+            // the RECORDED limitation stands for its working memory.
+            crate::limits::check_embed_input(pixel.stored.len(), l)?;
+        }
         let (dims, rgb) = if pixel.codec == Codec::MnF8 {
-            let (d, px, _) = manifold::mnf8::decode_mnf8(pixel.stored)
-                .map_err(|e| Error::fmt_msg(format!("mnfx: MNF8 embed decode: {e}")))?;
+            let decode = match limits {
+                Some(l) => manifold::mnf8::decode_mnf8_with_limits(pixel.stored, &l.embed_engine),
+                None => manifold::mnf8::decode_mnf8(pixel.stored),
+            };
+            let (d, px, _) =
+                decode.map_err(|e| Error::fmt_msg(format!("mnfx: MNF8 embed decode: {e}")))?;
             (d, px)
         } else {
             manifold::mnf9::decode_mnf9(pixel.stored)
                 .map_err(|e| Error::fmt_msg(format!("mnfx: MNF9 embed decode: {e}")))?
         };
         check_dims(hdr, dims.width, dims.height)?;
+        if let Some(l) = limits {
+            crate::limits::check_plane("embed", rgb.len() as u64, l)?;
+        }
         return Ok((dims, Cow::Owned(plane_bytes(hdr, rgb)?)));
     }
     // Raw / Zstd: an interleaved byte plane, bound = stride × pixels
@@ -195,6 +242,11 @@ fn decode_pixels_gen<'a, T: AsChunkView<'a>>(
                     bound
                 )));
             }
+            // W8-E2: the plane bytes themselves are the output; only the
+            // ceiling check runs (the backing is already zero-copy).
+            if let Some(l) = limits {
+                crate::limits::check_plane("raw", bound as u64, l)?;
+            }
             // W8-D2 zero-copy: the raw plane IS the input's bytes.
             Ok((
                 manifold::codec::Dims {
@@ -204,13 +256,19 @@ fn decode_pixels_gen<'a, T: AsChunkView<'a>>(
                 Cow::Borrowed(pixel.stored),
             ))
         }
-        Codec::Zstd => Ok((
-            manifold::codec::Dims {
-                width: hdr.width,
-                height: hdr.height,
-            },
-            Cow::Owned(decompress_bounded(pixel.stored, bound)?),
-        )),
+        Codec::Zstd => {
+            // W8-E2: enforce the decompression bound BEFORE the frame.
+            if let Some(l) = limits {
+                crate::limits::check_plane("zstd", bound as u64, l)?;
+            }
+            Ok((
+                manifold::codec::Dims {
+                    width: hdr.width,
+                    height: hdr.height,
+                },
+                Cow::Owned(decompress_bounded(pixel.stored, bound)?),
+            ))
+        }
         _ => Err(Error::fmt_msg(
             "mnfx: non-embed pixel codec must be raw or zstd",
         )),
@@ -360,7 +418,7 @@ pub fn decode_image<'a>(
     hdr: &ContainerHeader,
     chunks: &'a [Chunk],
 ) -> Result<(Pixels, Metadata<'a>)> {
-    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, None)?;
     let meta = validate_metadata_gen(hdr, chunks)?;
     Ok((
         Pixels {
@@ -374,11 +432,48 @@ pub fn decode_image<'a>(
 
 /// W8-D2: the borrowed full image — raw planes stay zero-copy, metadata
 /// borrows the ORIGINAL input bytes, and all lifetimes tie to the input.
+/// W8-E2: limits-aware owning full image.
+pub fn decode_image_limited<'a>(
+    hdr: &ContainerHeader,
+    chunks: &'a [Chunk],
+    limits: &crate::limits::DecodeLimits,
+) -> Result<(Pixels, Metadata<'a>)> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, Some(limits))?;
+    let meta = validate_metadata_gen(hdr, chunks)?;
+    Ok((
+        Pixels {
+            dims,
+            format: hdr.pixel_format,
+            samples: samples.into_owned(),
+        },
+        meta,
+    ))
+}
+
+/// W8-E2: limits-aware borrowed full image (compose with
+/// `parse_borrowed_limited` for the bounded full path).
+pub fn decode_image_borrowed_limited<'a>(
+    hdr: &ContainerHeader,
+    chunks: &'a [BorrowedChunk<'a>],
+    limits: &crate::limits::DecodeLimits,
+) -> Result<(BorrowedPixels<'a>, Metadata<'a>)> {
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, Some(limits))?;
+    let meta = validate_metadata_gen(hdr, chunks)?;
+    Ok((
+        BorrowedPixels {
+            dims,
+            format: hdr.pixel_format,
+            samples,
+        },
+        meta,
+    ))
+}
+
 pub fn decode_image_borrowed<'a>(
     hdr: &ContainerHeader,
     chunks: &'a [BorrowedChunk<'a>],
 ) -> Result<(BorrowedPixels<'a>, Metadata<'a>)> {
-    let (dims, samples) = decode_pixels_gen(hdr, chunks)?;
+    let (dims, samples) = decode_pixels_gen(hdr, chunks, None)?;
     let meta = validate_metadata_gen(hdr, chunks)?;
     Ok((
         BorrowedPixels {
@@ -391,7 +486,7 @@ pub fn decode_image_borrowed<'a>(
 }
 
 /// The exact byte length of the pixel plane: width × height × stride(format).
-fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
+pub(crate) fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
     let w =
         usize::try_from(hdr.width).map_err(|_| Error::fmt_msg("mnfx: width overflows usize"))?;
     let h =
@@ -410,9 +505,14 @@ fn plane_bound(hdr: &ContainerHeader) -> Result<usize> {
 fn decode_planar16_view<'a, T: AsChunkView<'a>>(
     hdr: &ContainerHeader,
     chunks: &'a [T],
+    limits: Option<&crate::limits::DecodeLimits>,
 ) -> Result<Vec<u8>> {
     let views = views_of(chunks);
     let half = plane_bound(hdr)? / 2;
+    // W8-E2: the COMBINED plane consumption check, before the assembly.
+    if let Some(l) = limits {
+        crate::limits::check_plane("planar16-hi+lo", half as u64 * 2, l)?;
+    }
     let mut planes: [Option<Vec<u8>>; 2] = [None, None];
     for c in views {
         let slot = match c.chunk_type {
