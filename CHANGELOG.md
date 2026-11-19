@@ -12,7 +12,7 @@ Published as `manifold-frame` 0.1.1 — no wire-API changes behind the
 verification) and the W7-A negative result, plus the refreshed
 README. Registry read-back + fresh-consumer smoke verified at 0.1.1.
 
-# 0.2.0 — release candidate (rc1; W8-F)
+# 0.2.0 — release candidate (rc1; W8-F; F5 publication in progress)
 
 Release-qualification revision. Wire: MNFX v1, unchanged. The Rust
 package moves 0.1.1 → 0.2.0 (additive API volume since 0.1.0: borrowed
@@ -24,6 +24,23 @@ below were written for [Unreleased] during W8; they land in 0.2.0 as
 the release content. A source change after the F4 requalification
 triggers another rc stamp and a fresh F4 run.
 
+- W8-F5 — publication sequence opened (F1–F4 qualification complete;
+  publication state live in docs/w8f5-publication.md): the production
+  tag run caught a latent publish-gate false positive at its first
+  execution (the duplicate check keyed on version alone; the contract
+  ships one version across two platform archives) and REFUSED to
+  publish — correct guard behavior, zero side effects (no draft, no
+  release; verified). Fixed at 62535b4: the check keys on
+  (version, target) with one archive per platform, and the drafted
+  release notes carry the two standing qualifications verbatim (MNF9
+  resource exposure is an exposure proxy, not a strict bound on the
+  engine's internal working memory or execution time; fuzz parity is
+  acceptance parity across the tested mutation sets, not a universal
+  proof). Packaged-inputs requalification: the diff of the packaged set
+  (manifests, sources, headers, grammar, README, LICENSE) between the
+  qualified revision and the fix is ZERO lines — the candidate's
+  shipped content is byte-for-byte unchanged. The GitHub release stays
+  unpublished until the registry publication and read-back complete.
 - W8-F1 — retained CLI audit resolved (behavior-pinning CLI changes +
   docs; NO wire change): bare `--mnf8` (and the profile variants) now
   PIN the embedded payload to the MNF8 engine at the requested profile

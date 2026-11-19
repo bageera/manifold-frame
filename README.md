@@ -9,7 +9,19 @@ modifying the engines: an MNF8/MNF9 payload embedded under MNFX decodes
 byte-identically to its standalone decode. Design per ADR-009 and its
 review in the manifold repo (`docs/adr-009-mnfx-review.md`).
 
-## Status: W8-A complete (format hardening); W8-B1 reproducibility landed
+## Status: W8-F release qualification complete — v0.2.0 rc at `02a4c9a`; F5 publication in progress (docs/w8f5-publication.md)
+
+Release qualification evidence: W8-F1 audit resolution + F2 conformance
+(90 tests / 0 failed over the full release suite; fuzz distributions
+identical to the frozen vintages) in `docs/w8f2-conformance.md`; version
++ ABI reconciliation in `docs/w8f3-version-reconciliation.md`; the
+binary-distribution qualification (build/validate/consumers green on
+both platforms; archives independently re-verified, 9/9 internal
+checksums; provenance pins the qualified revision + engine 1.16.0) in
+`docs/w8f4-qualification.md`. Wire format: **MNFX v1, unchanged**. C
+ABI: **unchanged** (two functions, status values, caller-owned memory).
+
+Verification board:
 
 Verification board:
 
@@ -22,6 +34,7 @@ Verification board:
 | Independent consumer (W8-B4) | Executed green on both required platforms (same run): standalone C consumer (6 formats), libvips/ImageMagick W6 gates against the packaged ABI (linkage audit clean), relocatability, hostile leg, `b4-evidence-<target>` receipts with `producer_environment_used: false`; `consumer-b4` stage runs from the downloadable artifacts — no Rust build, no engine tree |
 | CRC32C (W8-D1) | slicing-by-16 promoted (16 KiB const tables, no deps/unsafe): CRC 0.45 → 2.9–3.5 GiB/s; complete parse 58 → 4.8 ms at 16 MiB (CRC was ~90% of parse); bitwise oracle retained under test configuration; candidate matrix + attribution rows in `docs/w8d1-results.json` |
 | Producer + audit (W8-E) | checked zstd plane producer (`encode::zstd_plane_chunks`/`zstd_plane_container`: bound-checked sample length, checksum enabled, raw_len zero, rule-13-proven, serialized through `serialize_checked`) — exact reconstruction on all six supported shapes; dependency audit recorded NEGATIVE (zstd already transitive via the engine; no feature flags) in `docs/w8e-dependency-audit.md` |
+| Release qualification (W8-F1–F4) | retained CLI audit resolved (the `--mnf8` pin, the help split, u64 pixel-count reporting, the pixels-only contract, the C-ABI size-query pin — `docs/w8-remaining-audit.md`); historical conformance 90/90 (`docs/w8f2-conformance.md`); v0.2.0 reconciliation (`docs/w8f3-version-reconciliation.md`); distribution qualified at `02a4c9a` with archive hashes + provenance (`docs/w8f4-qualification.md`); publication state + the publish-gate incident in `docs/w8f5-publication.md` |
 | Safety + limits (W8-E) | core crate `#![forbid(unsafe_code)]` + C-ABI crate `#![deny(unsafe_op_in_unsafe_fn)]` with every raw-pointer op explicitly scoped+SAFETY-documented; additive `DecodeLimits` enforced BEFORE the matching allocations (header fields, pixel count, chunk count, metadata aggregate, plane bound, per-embed payload budget) with MNF8 engine ceilings passed through and the MNF9 limitation recorded; C-ABI size query doubles as the resource guard (BUF_TOO_SMALL before any plane materialization) |
 | Borrowed parsing (W8-D2) | `parse_borrowed`/`BorrowedChunk` (the ONE validation walk; `parse()` = the materializing wrapper) + generic decode core: 64 MiB raw parse 44 allocs/~470 MB → 9 allocs/~2 KB; raw planes decode zero-copy; metadata-heavy 64 MiB full-path RSS −25% (264.5 → 198.9 MB); parity suite proves acceptance/error/pointer identity incl. pure-append mutations; fuzz distributions byte-identical to pre-D2 vintages; rows in `docs/w8d2-results.json` |
 | Container conformance (v1) | `tests/w6e_conformance.rs`: all six pixel formats (RGB8, RGBA8, Gray8, GrayA8, RGB16, Gray16) sample-exact through `serialize → parse → decode_pixels`, incl. raw/zstd/embed RGB8 arms; CI-runnable, no testdata |
